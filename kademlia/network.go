@@ -7,76 +7,52 @@ import (
 )
 
 type Network struct {
-	Self     Contact
-	Conn     *net.UDPConn
-	Incoming chan Message
+	Self      Contact
+	Conn      *net.UDPConn
+	onMessage func(msg Message, addr *net.UDPAddr)
 }
 
-// type Message struct {
-// }
-
-func Listen(ip string, port int) (*Network, error) {
-	// TODO
-	// TODO
+func (network *Network) Listen() error {
 	// Create a UDP listener
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", ip, port))
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	self := Contact{
-		ID:      NewRandomKademliaID(),
-		Address: addr.String(),
-	}
-
-	network := &Network{
-		Self:     self,
-		Conn:     conn,
-		Incoming: make(chan Message, 5),
-	}
-	go network.listenLoop()
-
-	return network, nil
-}
-
-func (n *Network) listenLoop() {
-	buf := make([]byte, 1024)
+	defer network.Conn.Close()
 	for {
-		nBytes, remoteAddr, err := n.Conn.ReadFromUDP(buf)
-		if err != nil {
-			continue
-		}
-		var msg Message
-		if err := json.Unmarshal(buf[:nBytes], &msg); err != nil {
-			continue
+		for {
+			buffer := make([]byte, 2048)
+			len, remoteAddr, err := network.Conn.ReadFromUDP(buffer)
+			if err != nil {
+				fmt.Println("Error reading from UDP:", err)
+				continue
+			}
+
+			var msg Message
+			if err := json.Unmarshal(buffer[:len], &msg); err != nil {
+				fmt.Println("Error unmarshaling message:", err)
+				continue
+			}
+
+			if network.onMessage != nil {
+				go network.onMessage(msg, remoteAddr)
+			}
 		}
 
-		fmt.Printf("Got message %s from %s\n", msg.Type, remoteAddr)
-
-		// If it's a PING, reply with PONG
-		if msg.Type == "PING" {
-			pong := NewPongMessage(n.Self, msg.From)
-			data, _ := json.Marshal(pong)
-			udpAddr, _ := net.ResolveUDPAddr("udp", msg.From.Address)
-			n.Conn.WriteToUDP(data, udpAddr)
-			fmt.Printf("Sent PONG to %s\n", msg.From.Address)
-		}
-
-		n.Incoming <- msg
 	}
 }
 
-func (network *Network) SendPingMessage(contact *Contact) {
-	// TODO
-}
 
-func (network *Network) SendFindContactMessage(contact *Contact) {
-	// TODO
+func (network *Network) SendMessage(contact *Contact, msg *Message) error {
+	udpAddr, err := net.ResolveUDPAddr("udp", contact.Address)
+	if err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		fmt.Println("Error marshaling message:", err)
+		return err
+	}
+
+	_, err = network.Conn.WriteToUDP(data, udpAddr)
+	return err
 }
 
 func (network *Network) SendFindDataMessage(hash string) {
