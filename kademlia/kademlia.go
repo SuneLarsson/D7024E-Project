@@ -181,35 +181,68 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
 	//2. Ask a few nodes at a time (alpha)
 	//3. Merge responses, only keep closest contacts
 	//4. Repeat until no new nodes are found
-	const kSize = 20
-	const alpha = 3
+	const kSize = 20 // GOAL
+	const alpha = 3 // Concurrency
 	candidates := &ContactCandidates{}
-	initCandidates := kademlia.RoutingTable.FindClosestContacts(*target, kSize)
-	candidates.Append(initCandidates)
+	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
+	candidates.Append(shortlist)
 
 	queried := make(map[string]bool)
+	results := make([]Contact, 0, k)
 
 	for {
 		nodesToQuery := &ContactCandidates{}
-		for _, candidate := range candidates.contacts {
-			if len(queried) >= alpha {
+		for _, c := range shortlist.contacts {
+			if nodesToQuery.Len() >= alpha {
 				break
 			}
-			if !queried[candidate.ID.String()] {
-				nodesToQuery.Append(candidate)
-			}
-			if nodesToQuery.Len() == 0 {
-				break
+			if !queried[c.ID.String()] {
+				nodesToQuery.Append([]Contact{c})
 			}
 		}
-		// Needs more -- But still trying to figure this part out
+		if nodesToQuery.Len() == 0 {
+			break
+		}
+
+		responseChan := make(chan []Contact, nodesToQuery.Len())
+		for _, c := range nodesToQuery.contacts {
+			queried[c.ID.String()] = true
+			go func(contact Contact) {
+				res := kademlia.FindNode(&contact, target)
+				if res != nil {
+					responseChan <- res
+				} else {
+					responseChan <- []Contact{}
+				}
+			}(c)
+		}
+
+		for i := 0; i < nodesToQuery.Len(); i++ {
+			newContacts := <-responseChan
+			for _, nc := range newContacts {
+				nc.CalcDistance(target)
+				if !containsContact(candidates.contacts, nc) {
+					candidates.Append([]Contact{nc})
+				}
+			}
+		}
+
+		candidates.Sort()
+		if candidates.Len() > kSize {
+			candidates.contacts = candidates.GetContacts(kSize)
+		}
 	}
 
+	return candidates.contacts
+}
 
-
-	
-
-
+func containsContact(list []Contact, c Contact) bool {
+	for _, x := range list {
+		if x.ID.Equals(c.ID) {
+			return true
+		}
+	}
+	return false
 }
 
 func (kademlia *Kademlia) handleFindNode(msg Message, addr *net.UDPAddr) {
