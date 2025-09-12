@@ -38,14 +38,13 @@ func (network *Network) Listen() error {
 	}
 }
 
-
-func (network *Network) SendMessage(contact *Contact, msg *Message) error {
-	udpAddr, err := net.ResolveUDPAddr("udp", contact.Address)
+func (network *Network) SendMessage(addr string, msg *Message) error {
+	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return err
 	}
 
-	data, err := json.Marshal(msg)
+	data, err := json.Marshal(msg) //Kanske byt till protobuf
 	if err != nil {
 		fmt.Println("Error marshaling message:", err)
 		return err

@@ -82,23 +82,26 @@ func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 
 	switch msg.Type {
 	case PING:
-		kademlia.handlePing(msg, addr)
+		kademlia.handlePing(msg)
 	case PONG:
-		kademlia.handlePong(msg)
-	case FIND_NODE:
-		kademlia.handleFindNode(msg, addr)
+		kademlia.handleResponse(msg)
+	case FIND_NODE_REQUEST:
+		kademlia.handleFindNode(msg)
+	case FIND_NODE_RESPONSE:
+		kademlia.handleResponse(msg)
 	default:
 		fmt.Println("Unknown message:", msg.Type)
 	}
 }
 
-func (kademlia *Kademlia) handlePing(msg Message, addr *net.UDPAddr) {
-	fmt.Printf("Received PING from %s\n", msg.RPCID)
+func (kademlia *Kademlia) handlePing(msg Message) {
+	fmt.Printf("Received PING from %s\n", msg.From.Address)
 	pong := NewPongMessage(kademlia.Self, msg.RPCID, msg.From)
-	kademlia.Network.SendMessage(kademlia.Network.Conn, addr, pong)
+	kademlia.Network.SendMessage(msg.From.Address, pong)
 }
 
-func (k *Kademlia) handlePong(msg Message) {
+// General dispatch for responses that are "final"
+func (k *Kademlia) handleResponse(msg Message) {
 	dispatchRequest := MapRequest{
 		rpcID:       msg.RPCID,
 		responseMsg: msg,
@@ -106,6 +109,21 @@ func (k *Kademlia) handlePong(msg Message) {
 	}
 
 	k.mapManagerCh <- dispatchRequest
+}
+
+func (kademlia *Kademlia) handleFindNode(msg Message) {
+	fmt.Printf("Received FIND_NODE from %s\n", &msg.From)
+	targetID := &KademliaID{}
+	err := json.Unmarshal(msg.Payload, targetID)
+	if err != nil {
+		fmt.Println("Error unmarshaling target ID:", err)
+		return
+	}
+
+	closest := kademlia.RoutingTable.FindClosestContacts(targetID, bucketSize)
+	response := ResponseFindNodeMessage(kademlia.Self, msg.RPCID, msg.From, closest)
+	kademlia.Network.SendMessage(msg.From.Address, response)
+
 }
 
 func (kademlia *Kademlia) LookupContact(target *Contact) {
@@ -150,15 +168,15 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) []Conta
 	kademlia.mapManagerCh <- req
 
 	findMsg := NewFindNodeMessage(kademlia.Self, rpcID, *contact, *target)
-	err := kademlia.Network.SendMessage(contact, findMsg)
+	err := kademlia.Network.SendMessage(contact.Address, findMsg)
 	if err != nil {
 		fmt.Println("Error sending FindNode message:", err)
 		return nil
 	}
-	
+
 	select {
 	case resp := <-req.responseChan:
-		if resp.Type == FIND_NODE {
+		if resp.Type == FIND_NODE_RESPONSE {
 			var contacts []Contact
 			if err := json.Unmarshal(resp.Payload, &contacts); err != nil {
 				fmt.Println("Error unmarshaling contacts:", err)
@@ -175,24 +193,23 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) []Conta
 }
 
 func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
-	
-	// TODO: 
+
 	//1. Start with closest known contacts
 	//2. Ask a few nodes at a time (alpha)
 	//3. Merge responses, only keep closest contacts
 	//4. Repeat until no new nodes are found
 	const kSize = 20 // GOAL
-	const alpha = 3 // Concurrency
+	const alpha = 3  // Concurrency
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
 	candidates.Append(shortlist)
 
 	queried := make(map[string]bool)
-	results := make([]Contact, 0, k)
+	// results := make([]Contact, 0, kSize)
 
 	for {
 		nodesToQuery := &ContactCandidates{}
-		for _, c := range shortlist.contacts {
+		for _, c := range shortlist {
 			if nodesToQuery.Len() >= alpha {
 				break
 			}
@@ -245,10 +262,6 @@ func containsContact(list []Contact, c Contact) bool {
 	return false
 }
 
-func (kademlia *Kademlia) handleFindNode(msg Message, addr *net.UDPAddr) {
-	// Handle FIND_NODE message
-}
-
 func (kademlia *Kademlia) handleFindValue(msg Message, addr *net.UDPAddr) {
 	// Handle FIND_VALUE message
 }
@@ -272,7 +285,7 @@ func (kademlia *Kademlia) SendPing(contact *Contact) error {
 
 	pingMsg := NewPingMessage(kademlia.Self, *rpcID, *contact)
 
-	err := kademlia.Network.SendMessage(contact, pingMsg)
+	err := kademlia.Network.SendMessage(contact.Address, pingMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send ping: %w", err)
 	}

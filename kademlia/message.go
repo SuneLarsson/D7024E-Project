@@ -1,13 +1,16 @@
 package kademlia
 
+import "encoding/json"
+
 type MessageType string
 
 const (
-	PING       MessageType = "PING"
-	PONG       MessageType = "PONG"
-	STORE      MessageType = "STORE"
-	FIND_NODE  MessageType = "FIND_NODE"
-	FIND_VALUE MessageType = "FIND_VALUE"
+	PING               MessageType = "PING"
+	PONG               MessageType = "PONG"
+	STORE              MessageType = "STORE"
+	FIND_NODE_REQUEST  MessageType = "FIND_NODE_REQUEST"
+	FIND_NODE_RESPONSE MessageType = "FIND_NODE_RESPONSE"
+	FIND_VALUE         MessageType = "FIND_VALUE"
 )
 
 type Message struct {
@@ -42,10 +45,21 @@ func NewPongMessage(from Contact, rpcID KademliaID, to Contact) *Message {
 
 func NewFindNodeMessage(from Contact, rpcID KademliaID, to Contact, target KademliaID) *Message {
 	return &Message{
-		Type:    FIND_NODE,
+		Type:    FIND_NODE_REQUEST,
 		From:    from,
 		To:      to,
 		Payload: []byte(target.String()),
+		RPCID:   rpcID,
+	}
+}
+
+func ResponseFindNodeMessage(from Contact, rpcID KademliaID, to Contact, contacts []Contact) *Message {
+	contactsBytes, _ := json.Marshal(contacts)
+	return &Message{
+		Type:    FIND_NODE_RESPONSE,
+		From:    from,
+		To:      to,
+		Payload: contactsBytes,
 		RPCID:   rpcID,
 	}
 }
