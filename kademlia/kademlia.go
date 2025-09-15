@@ -1,6 +1,7 @@
 package kademlia
 
 import (
+	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -8,11 +9,17 @@ import (
 	"time"
 )
 
+const kSize = 20 // Bucket size
+const alpha = 3  // Concurrency
+
+// Kademlia structure
+
 type Kademlia struct {
 	Self         Contact
 	Network      *Network
 	RoutingTable *RoutingTable
 	mapManagerCh chan MapRequest
+	DataStore    map[KademliaID]DataItem
 }
 
 type MapRequest struct {
@@ -20,6 +27,11 @@ type MapRequest struct {
 	responseChan chan Message
 	register     bool
 	responseMsg  Message
+}
+
+type DataItem struct {
+	value      string
+	timeToLive time.Time
 }
 
 func NewKademliaNode(ip string, port int) (*Kademlia, error) {
@@ -89,6 +101,10 @@ func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 		kademlia.handleFindNode(msg)
 	case FIND_NODE_RESPONSE:
 		kademlia.handleResponse(msg)
+	case STORE:
+		kademlia.handleStore(msg)
+	case STORE_RESPONSE:
+		kademlia.handleResponse(msg)
 	default:
 		fmt.Println("Unknown message:", msg.Type)
 	}
@@ -123,39 +139,107 @@ func (kademlia *Kademlia) handleFindNode(msg Message) {
 	closest := kademlia.RoutingTable.FindClosestContacts(targetID, bucketSize)
 	response := ResponseFindNodeMessage(kademlia.Self, msg.RPCID, msg.From, closest)
 	kademlia.Network.SendMessage(msg.From.Address, response)
-
-}
-
-func (kademlia *Kademlia) LookupContact(target *Contact) {
-	// TODO
 }
 
 func (kademlia *Kademlia) LookupData(hash string) {
-	// TODO
+
 }
 
-func (kademlia *Kademlia) Store(data []byte) {
-	// TODO
+// STORE
+// The sender of the STORE RPC provides a key and a block of data and requires that the recipient store the data and make it available for later retrieval by that key.
+
+// This is a primitive operation, not an iterative one.
+func (kademlia *Kademlia) Store(contact *Contact, value string, hash string) bool {
+	rpcID := *NewRandomKademliaID()
+
+	req := MapRequest{
+		rpcID:        rpcID,
+		responseChan: make(chan Message, 1),
+		register:     true,
+	}
+	kademlia.mapManagerCh <- req
+
+	storeMsg := NewStoreMessage(kademlia.Self, rpcID, *contact, value)
+	err := kademlia.Network.SendMessage(contact.Address, storeMsg)
+	if err != nil {
+		fmt.Println("Error sending STORE message:", err)
+	}
+
+	select {
+	case resp := <-req.responseChan:
+		if resp.Type == STORE_RESPONSE {
+			var result bool
+			if err := json.Unmarshal(resp.Payload, &result); err != nil {
+				fmt.Println("Error unmarshaling result:", err)
+				return false
+			}
+			return result
+		}
+	case <-time.After(3 * time.Second):
+		// Timeout
+		fmt.Println("Store request timed out")
+		return false
+	}
+	return false
 }
 
-// func (kademlia *Kademlia) JoinNetwork(network *Network, knownContact *Contact) {
-// 	//1. Create ID if not exists
-// 	if network.Self.ID == nil {
-// 		network.Self.ID = NewRandomKademliaID()
-// 	}
+func (kademlia *Kademlia) iterativeStore(value string) {
+	//1. Hash the value to get the key
+	dataToHash := []byte(value)
+	hash := sha1.Sum(dataToHash)
+	key := NewKademliaID(hex.EncodeToString(hash[:]))
 
-// 	//2. Insert known contact into routing table (correct bucket)
-// 	kademlia.Network.RoutingTable.AddContact(*knownContact)
+	//2. Find the k closest nodes to the key
+	closest := kademlia.IterativeFindNode(key)
+	//3. Send STORE RPCs to those nodes
+	successCount := 0
 
-// 	//3. Run an Iterative Find Node on Self
-// 	kademlia.Network.IterativeFindNode(kademlia.Self.ID)
+	for _, contact := range closest {
+		result := kademlia.Store(&contact, value, key.String())
+		if result {
+			successCount++
+		}
+	}
+	// If at least one STORE was successful, consider it a success
+	// and print the number of successful stores
+	// Otherwise, print a failure message
+	if successCount > 0 {
+		fmt.Printf("Successfully stored value on %d nodes\n", successCount)
+	} else {
+		fmt.Println("Failed to store value on any node")
+	}
 
-// 	closest := kademlia.RoutingTable.FindClosestContacts(kademlia.Self.ID, 1)
+	//4. If a node does not respond, find a replacement node and send STORE to it // Optional
 
-// 	//4. Refresh bucket further away than closest
-// 	// neighbor
-// 	kademlia.Network.RoutingTable.RefreshBuckets()
-// }
+}
+
+func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
+	//1. Create ID if not exists
+	if kademlia.Self.ID == nil {
+		kademlia.Self.ID = NewRandomKademliaID()
+	}
+
+	//2. Insert known contact into routing table (correct bucket)
+	kademlia.RoutingTable.AddContact(*knownContact)
+
+	//3. Run an Iterative Find Node on Self
+	kademlia.IterativeFindNode(kademlia.Self.ID)
+
+	//4. Refresh bucket further away than closest
+	// neighbor
+	closest := kademlia.RoutingTable.FindClosestContacts(kademlia.Self.ID, 1)
+	bucketIndex := kademlia.RoutingTable.getBucketIndex(closest[0].ID)
+	for i := bucketIndex + 1; i < IDLength*8; i++ {
+		kademlia.RefreshBucket(i)
+	}
+}
+
+func (kademlia *Kademlia) RefreshBucket(idx int) {
+	contact := kademlia.RoutingTable.buckets[idx].getContactForBucketRefresh()
+	if contact.ID != nil {
+		kademlia.IterativeFindNode(contact.ID)
+	}
+}
 
 func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) []Contact {
 	rpcID := *NewRandomKademliaID()
@@ -192,14 +276,14 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) []Conta
 	return []Contact{}
 }
 
+// Our implementation of LookupNode
 func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
 
 	//1. Start with closest known contacts
 	//2. Ask a few nodes at a time (alpha)
 	//3. Merge responses, only keep closest contacts
 	//4. Repeat until no new nodes are found
-	const kSize = 20 // GOAL
-	const alpha = 3  // Concurrency
+
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
 	candidates.Append(shortlist)
@@ -209,7 +293,7 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
 
 	for {
 		nodesToQuery := &ContactCandidates{}
-		for _, c := range shortlist {
+		for _, c := range candidates.contacts {
 			if nodesToQuery.Len() >= alpha {
 				break
 			}
@@ -267,7 +351,28 @@ func (kademlia *Kademlia) handleFindValue(msg Message, addr *net.UDPAddr) {
 }
 
 func (kademlia *Kademlia) handleStore(msg Message) {
-	// Handle STORE message
+	fmt.Printf("Received STORE from %s\n", &msg.From)
+	var value string
+	err := json.Unmarshal(msg.Payload, &value)
+	if err != nil {
+		fmt.Println("Error unmarshaling value:", err)
+		return
+	}
+	hash := sha1.Sum([]byte(value))
+	key := NewKademliaID(hex.EncodeToString(hash[:]))
+
+	dataItem, err := kademlia.NewDataItem(value)
+	storeResult := true
+	if err != nil {
+		fmt.Println("Error creating DataItem:", err)
+		storeResult = false
+	}
+	kademlia.DataStore[*key] = *dataItem
+
+	msgResponse := NewStoreResponseMessage(kademlia.Self, msg.RPCID, msg.From, storeResult)
+	kademlia.Network.SendMessage(msg.From.Address, msgResponse)
+
+	// Send STORE_RESPONSE back to the sender
 }
 
 func (kademlia *Kademlia) SendPing(contact *Contact) error {

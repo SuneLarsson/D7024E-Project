@@ -8,6 +8,7 @@ const (
 	PING               MessageType = "PING"
 	PONG               MessageType = "PONG"
 	STORE              MessageType = "STORE"
+	STORE_RESPONSE     MessageType = "STORE_RESPONSE"
 	FIND_NODE_REQUEST  MessageType = "FIND_NODE_REQUEST"
 	FIND_NODE_RESPONSE MessageType = "FIND_NODE_RESPONSE"
 	FIND_VALUE         MessageType = "FIND_VALUE"
@@ -20,10 +21,6 @@ type Message struct {
 	Payload []byte
 	RPCID   KademliaID // Unique ID for matching requests and responses
 }
-
-// type Ping struct {
-// 	Message
-// }
 
 func NewPingMessage(from Contact, rpcID KademliaID, to Contact) *Message {
 	return &Message{
@@ -44,11 +41,12 @@ func NewPongMessage(from Contact, rpcID KademliaID, to Contact) *Message {
 }
 
 func NewFindNodeMessage(from Contact, rpcID KademliaID, to Contact, target KademliaID) *Message {
+	targetBytes, _ := json.Marshal(target)
 	return &Message{
 		Type:    FIND_NODE_REQUEST,
 		From:    from,
 		To:      to,
-		Payload: []byte(target.String()),
+		Payload: targetBytes,
 		RPCID:   rpcID,
 	}
 }
@@ -60,6 +58,28 @@ func ResponseFindNodeMessage(from Contact, rpcID KademliaID, to Contact, contact
 		From:    from,
 		To:      to,
 		Payload: contactsBytes,
+		RPCID:   rpcID,
+	}
+}
+
+func NewStoreMessage(from Contact, rpcID KademliaID, to Contact, data string) *Message {
+	dataBytes, _ := json.Marshal(data)
+	return &Message{
+		Type:    STORE,
+		From:    from,
+		To:      to,
+		Payload: dataBytes,
+		RPCID:   rpcID,
+	}
+}
+
+func NewStoreResponseMessage(from Contact, rpcID KademliaID, to Contact, result bool) *Message {
+	resultBytes, _ := json.Marshal(result)
+	return &Message{
+		Type:    STORE_RESPONSE,
+		From:    from,
+		To:      to,
+		Payload: resultBytes,
 		RPCID:   rpcID,
 	}
 }
