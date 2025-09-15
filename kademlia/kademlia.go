@@ -141,8 +141,78 @@ func (kademlia *Kademlia) handleFindNode(msg Message) {
 	kademlia.Network.SendMessage(msg.From.Address, response)
 }
 
-func (kademlia *Kademlia) LookupData(hash string) {
+// Handle FIND_VALUE
+func (kademlia *Kademlia) handleFindValue(msg Message) {
+	fmt.Printf("Received FIND_VALUE from %s\n", &msg.From)
+	targetID := &KademliaID{}
+	err := json.Unmarshal(msg.Payload, targetID)
+	if err != nil {
+		fmt.Println("Error unmarshaling target ID:", err)
+		return
+	}
 
+	dataItem, exists := kademlia.DataStore[*targetID]
+	if exists {
+		response := NewFindValueResponseMessage(kademlia.Self, msg.RPCID, msg.From, dataItem.value, nil)
+		kademlia.Network.SendMessage(msg.From.Address, response)
+		return
+	} else {
+		closest := kademlia.RoutingTable.FindClosestContacts(targetID, bucketSize)
+		response := NewFindValueResponseMessage(kademlia.Self, msg.RPCID, msg.From, "", closest)
+		kademlia.Network.SendMessage(msg.From.Address, response)
+		return
+	}
+
+}
+
+// func (kademlia *Kademlia) iterativeFindValue(hash string) {
+// 	key := NewKademliaID(hash)
+
+// }
+
+// FIND_VALUE
+func (kademlia *Kademlia) FindValue(contact *Contact, target *KademliaID) (string, []Contact, bool) {
+	rpcID := *NewRandomKademliaID()
+
+	req := MapRequest{
+		rpcID:        rpcID,
+		responseChan: make(chan Message, 1),
+		register:     true,
+	}
+	kademlia.mapManagerCh <- req
+
+	findValueMsg := NewFindValueMessage(kademlia.Self, rpcID, *contact, *target)
+	err := kademlia.Network.SendMessage(contact.Address, findValueMsg)
+	if err != nil {
+		fmt.Println("Error sending FindValue message:", err)
+		return "", nil, false
+	}
+
+	select {
+	case resp := <-req.responseChan:
+		if resp.Type == FIND_VALUE_RESPONSE {
+			var value string
+			var contacts []Contact
+			if err := json.Unmarshal(resp.Payload, &value); err != nil {
+				// If unmarshaling to string fails, try unmarshaling to contacts
+				if err := json.Unmarshal(resp.Payload, &contacts); err != nil {
+					fmt.Println("Error unmarshaling value or contacts:", err)
+					return "", nil, false
+				}
+				// If we got contacts, return them with a false flag
+				return "", contacts, false
+			}
+			// If we got a value, return it with a true flag
+			if value == "" {
+				return "", contacts, false
+			}
+			return value, nil, true
+		}
+	case <-time.After(3 * time.Second):
+		// Timeout
+		fmt.Println("FindValue request timed out")
+	}
+	return "", nil, false
 }
 
 // STORE
@@ -190,7 +260,8 @@ func (kademlia *Kademlia) iterativeStore(value string) {
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
 
 	//2. Find the k closest nodes to the key
-	closest := kademlia.IterativeFindNode(key)
+	closest, _ := kademlia.IterativeFindNode(key)
+	// closest := kademlia.IterativeFindNode(key)
 	//3. Send STORE RPCs to those nodes
 	successCount := 0
 
@@ -277,7 +348,12 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) []Conta
 }
 
 // Our implementation of LookupNode
-func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
+func (kademlia *Kademlia) IterativeFindNode(
+	target *KademliaID,
+	queryRPC func(contact *Contact, target *KademliaID) ([]Contact, bool, interface{}),
+	alpha int,
+	kSize int,
+) ([]Contact, interface{}) {
 
 	//1. Start with closest known contacts
 	//2. Ask a few nodes at a time (alpha)
@@ -290,6 +366,7 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
 
 	queried := make(map[string]bool)
 	// results := make([]Contact, 0, kSize)
+	var foundValue interface{} = nil
 
 	for {
 		nodesToQuery := &ContactCandidates{}
@@ -301,30 +378,41 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
 				nodesToQuery.Append([]Contact{c})
 			}
 		}
-		if nodesToQuery.Len() == 0 {
+		if nodesToQuery.Len() == 0 || (foundValue != nil) {
 			break
 		}
 
-		responseChan := make(chan []Contact, nodesToQuery.Len())
+		type lookupResponse struct {
+			contacts []Contact
+			found    bool
+			value    interface{}
+		}
+
+		responseChan := make(chan lookupResponse, nodesToQuery.Len())
 		for _, c := range nodesToQuery.contacts {
 			queried[c.ID.String()] = true
 			go func(contact Contact) {
-				res := kademlia.FindNode(&contact, target)
-				if res != nil {
-					responseChan <- res
-				} else {
-					responseChan <- []Contact{}
+				contacts, found, value := queryRPC(&contact, target)
+				responseChan <- lookupResponse{contacts: contacts, found: found, value: value}
+				// res := kademlia.FindNode(&contact, target)
+				if found && foundValue == nil {
+					foundValue = value
 				}
 			}(c)
 		}
 
+		progress := false
 		for i := 0; i < nodesToQuery.Len(); i++ {
-			newContacts := <-responseChan
-			for _, nc := range newContacts {
+			resp := <-responseChan
+			for _, nc := range resp.contacts {
 				nc.CalcDistance(target)
 				if !containsContact(candidates.contacts, nc) {
 					candidates.Append([]Contact{nc})
+					progress = true
 				}
+			}
+			if resp.found && foundValue == nil {
+				foundValue = resp.value
 			}
 		}
 
@@ -332,9 +420,12 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
 		if candidates.Len() > kSize {
 			candidates.contacts = candidates.GetContacts(kSize)
 		}
+		if !progress {
+			break
+		}
 	}
 
-	return candidates.contacts
+	return candidates.contacts, foundValue
 }
 
 func containsContact(list []Contact, c Contact) bool {

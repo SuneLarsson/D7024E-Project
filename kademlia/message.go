@@ -5,13 +5,14 @@ import "encoding/json"
 type MessageType string
 
 const (
-	PING               MessageType = "PING"
-	PONG               MessageType = "PONG"
-	STORE              MessageType = "STORE"
-	STORE_RESPONSE     MessageType = "STORE_RESPONSE"
-	FIND_NODE_REQUEST  MessageType = "FIND_NODE_REQUEST"
-	FIND_NODE_RESPONSE MessageType = "FIND_NODE_RESPONSE"
-	FIND_VALUE         MessageType = "FIND_VALUE"
+	PING                MessageType = "PING"
+	PONG                MessageType = "PONG"
+	STORE               MessageType = "STORE"
+	STORE_RESPONSE      MessageType = "STORE_RESPONSE"
+	FIND_NODE_REQUEST   MessageType = "FIND_NODE_REQUEST"
+	FIND_NODE_RESPONSE  MessageType = "FIND_NODE_RESPONSE"
+	FIND_VALUE          MessageType = "FIND_VALUE"
+	FIND_VALUE_RESPONSE MessageType = "FIND_VALUE_RESPONSE"
 )
 
 type Message struct {
@@ -80,6 +81,34 @@ func NewStoreResponseMessage(from Contact, rpcID KademliaID, to Contact, result 
 		From:    from,
 		To:      to,
 		Payload: resultBytes,
+		RPCID:   rpcID,
+	}
+}
+
+func NewFindValueMessage(from Contact, rpcID KademliaID, to Contact, key KademliaID) *Message {
+	keyBytes, _ := json.Marshal(key)
+	return &Message{
+		Type:    FIND_VALUE,
+		From:    from,
+		To:      to,
+		Payload: keyBytes,
+		RPCID:   rpcID,
+	}
+}
+
+func NewFindValueResponseMessage(from Contact, rpcID KademliaID, to Contact, value string, contacts []Contact) *Message {
+	var payload []byte
+	if value != "" {
+		payload, _ = json.Marshal(value)
+	} else {
+		contactsBytes, _ := json.Marshal(contacts)
+		payload = contactsBytes
+	}
+	return &Message{
+		Type:    FIND_VALUE_RESPONSE,
+		From:    from,
+		To:      to,
+		Payload: payload,
 		RPCID:   rpcID,
 	}
 }
