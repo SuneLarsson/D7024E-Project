@@ -10,9 +10,13 @@ COPY . .
 
 RUN CGO_ENABLED=0 go build -o /main .
 
+RUN CGO_ENABLED=0 go build -o /kademlia ./cmd/cli
+
 # Stage 2: The final, lightweight production stage
 FROM alpine:latest
 
 COPY --from=builder /main .
+
+COPY --from=builder /kademlia /bin/
 
 CMD ["./main"]
