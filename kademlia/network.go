@@ -6,10 +6,23 @@ import (
 	"net"
 )
 
+type NetworkAPI interface {
+	Listen() error
+	SendMessage(addr string, msg *Message) error
+}
+
 type Network struct {
 	Self      Contact
 	Conn      *net.UDPConn
 	onMessage func(msg Message, addr *net.UDPAddr)
+}
+
+func NewNetwork(self Contact, conn *net.UDPConn, handler func(msg Message, addr *net.UDPAddr)) *Network {
+	return &Network{
+		Self:      self,
+		Conn:      conn,
+		onMessage: handler,
+	}
 }
 
 func (network *Network) Listen() error {
@@ -52,12 +65,4 @@ func (network *Network) SendMessage(addr string, msg *Message) error {
 
 	_, err = network.Conn.WriteToUDP(data, udpAddr)
 	return err
-}
-
-func (network *Network) SendFindDataMessage(hash string) {
-	// TODO
-}
-
-func (network *Network) SendStoreMessage(data []byte) {
-	// TODO
 }

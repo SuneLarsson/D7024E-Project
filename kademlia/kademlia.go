@@ -13,7 +13,7 @@ const alpha = 3  // Concurrency
 
 type Kademlia struct {
 	Self         Contact
-	Network      *Network
+	Network      NetworkAPI
 	RoutingTable *RoutingTable
 	mapManagerCh chan MapRequest
 	DataStore    map[KademliaID]DataItem
@@ -49,21 +49,18 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 		distance: nil,
 	}
 
-	network := &Network{
-		Conn: conn,
-		Self: contact,
-	}
-
 	routingtable := NewRoutingTable(contact)
 
 	kademlia := &Kademlia{
 		Self:         contact,
 		RoutingTable: routingtable,
-		Network:      network,
 		mapManagerCh: make(chan MapRequest),
+		DataStore:    make(map[KademliaID]DataItem),
 	}
 
-	kademlia.Network.onMessage = kademlia.HandleMessage
+	network := NewNetwork(contact, conn, kademlia.HandleMessage)
+
+	kademlia.Network = network
 
 	go kademlia.Network.Listen()
 	go kademlia.managePendingRequests()
@@ -85,8 +82,6 @@ func (k *Kademlia) managePendingRequests() {
 		}
 	}
 }
-
-// func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) ([]Contact, bool, string) {
 
 func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 	//1. Create ID if not exists
