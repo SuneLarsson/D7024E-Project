@@ -6,6 +6,16 @@ import (
 	"fmt"
 )
 
+func (kademlia *Kademlia) LookupNode(target string) []Contact {
+	targetId := NewKademliaID(target)
+	return kademlia.IterativeFindNode(targetId)
+}
+
+func (kademlia *Kademlia) LookupValue(target string) ([]Contact, *string) {
+	targetId := NewKademliaID(target)
+	return kademlia.IterativeFindValue(targetId)
+}
+
 func (kademlia *Kademlia) IterativeFindValue(target *KademliaID) ([]Contact, *string) {
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
@@ -90,7 +100,7 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID) ([]Contact, *st
 	return candidates.GetContacts(kSize), nil
 }
 
-func (kademlia *Kademlia) iterativeStore(value string) {
+func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	//1. Hash the value to get the key
 	dataToHash := []byte(value)
 	hash := sha1.Sum(dataToHash)
@@ -118,7 +128,7 @@ func (kademlia *Kademlia) iterativeStore(value string) {
 	}
 
 	//4. If a node does not respond, find a replacement node and send STORE to it // Optional
-
+	return key.String(), successCount > 0
 }
 
 func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {

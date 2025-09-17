@@ -1,6 +1,7 @@
 package kademlia
 
 import (
+	"d7024e/storage"
 	"fmt"
 	"net"
 	"time"
@@ -16,7 +17,7 @@ type Kademlia struct {
 	Network      NetworkAPI
 	RoutingTable *RoutingTable
 	mapManagerCh chan MapRequest
-	DataStore    map[KademliaID]DataItem
+	DataStore    storage.Storage
 }
 
 type MapRequest struct {
@@ -55,7 +56,7 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 		Self:         contact,
 		RoutingTable: routingtable,
 		mapManagerCh: make(chan MapRequest),
-		DataStore:    make(map[KademliaID]DataItem),
+		DataStore:    *storage.NewStorage(),
 	}
 
 	network := NewNetwork(contact, conn, kademlia.HandleMessage)

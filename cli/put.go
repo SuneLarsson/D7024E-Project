@@ -1,7 +1,8 @@
 package cli
 
 import (
-	"d7024e/storage"
+	"d7024e/server"
+	"fmt"
 
 	"github.com/spf13/cobra"
 )
@@ -15,8 +16,10 @@ var PutCmd = &cobra.Command{
 	Short: "Upload a file",
 	Long:  "Upload a file",
 	Run: func(cmd *cobra.Command, args []string) {
-		conn := storage.ConnectToServer(storage.DEFAULT_SOCKET)
+		conn := server.ConnectToServer(server.DEFAULT_SOCKET)
 		defer conn.Close()
-		storage.SendMessage(conn, "put"+storage.SEPARATING_STRING+args[0]+storage.SEPARATING_STRING+args[1])
+		server.SendMessage(conn, "put"+server.SEPARATING_STRING+args[0]+server.SEPARATING_STRING+args[1])
+		response := server.ListenToResponse(conn)
+		fmt.Println("Value stored at key", response)
 	},
 }

@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"d7024e/storage"
+	"d7024e/server"
 
 	"github.com/spf13/cobra"
 )
@@ -15,8 +15,8 @@ var ExitCmd = &cobra.Command{
 	Short: "Terminate the node",
 	Long:  "Terminate the node",
 	Run: func(cmd *cobra.Command, args []string) {
-		conn := storage.ConnectToServer(storage.DEFAULT_SOCKET)
+		conn := server.ConnectToServer(server.DEFAULT_SOCKET)
 		defer conn.Close()
-		storage.SendMessage(conn, "exit")
+		server.SendMessage(conn, "exit")
 	},
 }

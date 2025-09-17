@@ -2,6 +2,7 @@
 package kademlia
 
 import (
+	"d7024e/storage"
 	"errors"
 	"sync"
 )
@@ -63,7 +64,7 @@ func NewTestKademliaNode(address string, sim *SimulatedNetwork) *Kademlia {
 	kademliaNode := &Kademlia{
 		Self:         contact,
 		RoutingTable: rt,
-		DataStore:    make(map[KademliaID]DataItem),
+		DataStore:    *storage.NewStorage(),
 		mapManagerCh: make(chan MapRequest),
 	}
 

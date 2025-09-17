@@ -60,14 +60,11 @@ func (kademlia *Kademlia) handleStore(msg Message) {
 	}
 	hash := sha1.Sum([]byte(value))
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
-
-	dataItem, err := kademlia.NewDataItem(value)
 	storeResult := true
-	if err != nil {
-		fmt.Println("Error creating DataItem:", err)
+	kademlia.DataStore.Put(key.String(), value)
+	if err := recover(); err != nil {
 		storeResult = false
 	}
-	kademlia.DataStore[*key] = *dataItem
 
 	msgResponse := NewStoreResponseMessage(kademlia.Self, msg.RPCID, msg.From, storeResult)
 	kademlia.Network.SendMessage(msg.From.Address, msgResponse)
@@ -85,10 +82,10 @@ func (kademlia *Kademlia) handleFindValue(msg Message) {
 		return
 	}
 
-	dataItem, exists := kademlia.DataStore[*targetID]
+	dataItem, exists := kademlia.DataStore.Get(targetID.String())
 	//lookup
 	if exists {
-		response := NewFindValueResponseMessage(kademlia.Self, msg.RPCID, msg.From, dataItem.value, nil)
+		response := NewFindValueResponseMessage(kademlia.Self, msg.RPCID, msg.From, dataItem, nil)
 		kademlia.Network.SendMessage(msg.From.Address, response)
 		return
 	} else {

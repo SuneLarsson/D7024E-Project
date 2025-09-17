@@ -29,23 +29,22 @@ func (network *Network) Listen() error {
 	// Create a UDP listener
 	defer network.Conn.Close()
 	for {
-		for {
-			buffer := make([]byte, 2048)
-			len, remoteAddr, err := network.Conn.ReadFromUDP(buffer)
-			if err != nil {
-				fmt.Println("Error reading from UDP:", err)
-				continue
-			}
 
-			var msg Message
-			if err := json.Unmarshal(buffer[:len], &msg); err != nil {
-				fmt.Println("Error unmarshaling message:", err)
-				continue
-			}
+		buffer := make([]byte, 2048)
+		len, remoteAddr, err := network.Conn.ReadFromUDP(buffer)
+		if err != nil {
+			fmt.Println("Error reading from UDP:", err)
+			continue
+		}
 
-			if network.onMessage != nil {
-				go network.onMessage(msg, remoteAddr)
-			}
+		var msg Message
+		if err := json.Unmarshal(buffer[:len], &msg); err != nil {
+			fmt.Println("Error unmarshaling message:", err)
+			continue
+		}
+
+		if network.onMessage != nil {
+			go network.onMessage(msg, remoteAddr)
 		}
 
 	}
