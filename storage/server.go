@@ -94,7 +94,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 		case "ping":
 			reply(conn, "pong")
 		case "get":
-			reply(conn, s.storage.Get(splitRequest[1]))
+			var response string
+			response, _ = s.storage.Get(splitRequest[1])
+			reply(conn, response)
 		case "put":
 			s.storage.Put(splitRequest[1], splitRequest[2])
 		}

@@ -77,7 +77,8 @@ func TestGoodBehaviour(t *testing.T) {
 	key := "thisismykey"
 	value := "thisismyvalue"
 	storage.Put(key, value)
-	valueStored := storage.Get(key)
+	var valueStored string
+	valueStored, _ = storage.Get(key)
 	if value != valueStored {
 		t.Error("Value expected:", value, "and value received:", valueStored)
 	}
@@ -85,14 +86,13 @@ func TestGoodBehaviour(t *testing.T) {
 
 // Test for Get unknown key
 func TestGetUnknownKey(t *testing.T) {
-	defer func() {
-		if err := recover(); err == nil || err != ERR_UNKNOWNKEY {
-			t.Error("When the key does not exist in storage, ERR_UNKNOWNKEY should be thrown")
-		}
-	}()
 	storage := NewStorage()
 	key := "keywithnoknownvalue"
-	storage.Get(key)
+	var exists bool
+	_, exists = storage.Get(key)
+	if exists {
+		t.Error("Unknown key should not return existing value")
+	}
 }
 
 // Test for Put already existing key
@@ -108,7 +108,8 @@ func TestPutExistingKey(t *testing.T) {
 	storage.Put(key, value)
 	value = "thisismySECONDvalue"
 	storage.Put(key, value)
-	valueStored := storage.Get(key)
+	var valueStored string
+	valueStored, _ = storage.Get(key)
 	if value != valueStored {
 		t.Error("Value expected:", value, "and value received:", valueStored)
 	}

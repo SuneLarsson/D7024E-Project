@@ -7,7 +7,6 @@ import (
 
 const ERR_INVALIDKEY string = "INVALID KEY"
 const ERR_INVALIDVALUE string = "INVALID VALUE"
-const ERR_UNKNOWNKEY string = "UNKNOWN KEY"
 const ERR_INVALIDTIMESTAMP string = "INVALID TIMESTAMP"
 
 type StoredInfo struct {
@@ -24,18 +23,19 @@ func NewStorage() *Storage {
 	return &Storage{hashmap: make(map[string]*StoredInfo)}
 }
 
-func (storage *Storage) Get(key string) string {
+func (storage *Storage) Get(key string) (string, bool) {
 	if key == "" {
 		panic(ERR_INVALIDKEY)
 	}
 	storage.mutex.Lock()
 	defer storage.mutex.Unlock()
 	value := storage.hashmap[key]
-	if value == nil {
-		panic(ERR_UNKNOWNKEY)
+	info := ""
+	if value != nil {
+		value.timestamp = time.Now().UnixMilli()
+		info = value.information
 	}
-	value.timestamp = time.Now().UnixMilli()
-	return value.information
+	return info, value != nil
 }
 
 func (storage *Storage) Put(key string, value string) {
