@@ -97,6 +97,9 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID) ([]Contact, *st
 			break
 		}
 	}
+	if candidates.Len() < kSize {
+		return candidates.GetContacts(candidates.Len()), nil
+	}
 	return candidates.GetContacts(kSize), nil
 }
 
@@ -135,7 +138,8 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
 	candidates.Append(shortlist)
-	closestSoFar := &Contact{}
+	// closestSoFar := &Contact{}
+	var closestSoFar *Contact = nil
 	queried := make(map[string]bool)
 
 	for {
@@ -177,6 +181,9 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
 		}
 
 	}
+	if candidates.Len() < kSize {
+		return candidates.GetContacts(candidates.Len())
+	}
 	return candidates.GetContacts(kSize)
 }
 
@@ -203,11 +210,21 @@ func (c *ContactCandidates) mergeAndSort(newContacts []Contact, target *Kademlia
 		}
 	}
 
-	c.Sort()
+	c.SortWithTarget(target)
+
 	if c.Len() > kSize {
 		c.contacts = c.GetContacts(kSize)
 	}
 	return progress
+}
+
+func (c *ContactCandidates) SortWithTarget(target *KademliaID) {
+	for i := range c.contacts {
+		if c.contacts[i].distance == nil {
+			c.contacts[i].CalcDistance(target)
+		}
+	}
+	c.Sort()
 }
 
 func containsContact(list []Contact, c Contact) bool {
