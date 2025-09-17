@@ -61,7 +61,7 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID) ([]Contact, *st
 				}
 
 				// Merge the new contacts from the response.
-				if candidates.mergeSort(resp.contacts, target, kSize) {
+				if candidates.mergeAndSort(resp.contacts, target, kSize) {
 					progress = true
 				}
 			}
@@ -148,7 +148,7 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
 		progress := false
 		for i := 0; i < len(nodesToQuery); i++ {
 			newContacts := <-responseChan
-			if candidates.mergeSort(newContacts, target, kSize) {
+			if candidates.mergeAndSort(newContacts, target, kSize) {
 				progress = true
 			}
 		}
@@ -183,7 +183,7 @@ func (c *ContactCandidates) pickAlpha(queried map[string]bool, alpha int) []Cont
 	return toQuery
 }
 
-func (c *ContactCandidates) mergeSort(newContacts []Contact, target *KademliaID, kSize int) bool {
+func (c *ContactCandidates) mergeAndSort(newContacts []Contact, target *KademliaID, kSize int) bool {
 	progress := false
 	for _, nc := range newContacts {
 		nc.CalcDistance(target)
