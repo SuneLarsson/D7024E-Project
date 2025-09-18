@@ -35,6 +35,7 @@ func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 
 // General dispatch for responses that are "final"
 func (k *Kademlia) handleResponse(msg Message) {
+	fmt.Printf("Received response of type %s from %s\n", msg.Type, msg.From.Address)
 	dispatchRequest := MapRequest{
 		rpcID:       msg.RPCID,
 		responseMsg: msg,
@@ -47,6 +48,8 @@ func (k *Kademlia) handleResponse(msg Message) {
 func (kademlia *Kademlia) handlePing(msg Message) {
 	fmt.Printf("Received PING from %s\n", msg.From.Address)
 	pong := NewPongMessage(kademlia.Self, msg.RPCID, msg.From)
+	fmt.Printf("Sending PONG to %s\n", msg.From.Address)
+	fmt.Printf("PONG message: %+v\n", pong)
 	kademlia.Network.SendMessage(msg.From.Address, pong)
 }
 

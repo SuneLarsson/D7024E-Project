@@ -56,7 +56,7 @@ func (network *Network) SendMessage(addr string, msg *Message) error {
 		return err
 	}
 
-	data, err := json.Marshal(msg) //Kanske byt till protobuf
+	data, err := json.Marshal(msg)
 	if err != nil {
 		fmt.Println("Error marshaling message:", err)
 		return err

@@ -19,19 +19,24 @@ const DEFAULT_SOCKET string = "/tmp/svc.sock"
 var nbPortListenedTo int = 0
 
 type Server struct {
-	socketPath    string
-	exitNode      bool
-	mutExit       sync.RWMutex
-	storage       *storage.Storage
-	bootstrapNode kademlia.Kademlia
+	socketPath       string
+	exitNode         bool
+	mutExit          sync.RWMutex
+	storage          *storage.Storage
+	node             *kademlia.Kademlia
+	bootstrapAddress string
 }
 
-func NewServer(sockPath string) *Server {
-	return &Server{socketPath: sockPath, exitNode: false}
+func NewServer(sockPath string, bootstrapAddress string) *Server {
+	return &Server{
+		socketPath:       sockPath,
+		exitNode:         false,
+		bootstrapAddress: bootstrapAddress,
+	}
 }
 
 // Starts begin listening for incoming messages
-func (s Server) Listen() {
+func (s *Server) Listen() {
 	os.Remove(s.socketPath)
 
 	s.storage = storage.NewStorage()
@@ -42,51 +47,55 @@ func (s Server) Listen() {
 		panic(err)
 	}
 
-	// 1. Create the Bootstrap Node
-	// This node starts first and acts as the entry point for others.
-	bootstrapNode, err := kademlia.NewKademliaNode("127.0.0.1", 8000+nbPortListenedTo)
-	nbPortListenedTo += 1
+	node, err := kademlia.NewKademliaNode("0.0.0.0", 8000)
 	if err != nil {
-		log.Fatal("Failed to create bootstrap node:", err)
+		log.Fatal("Failed to create Kademlia node:", err)
 	}
-	log.Printf("Bootstrap node created with ID: %s", bootstrapNode.Self.ID)
+	s.node = node
+	log.Printf("Node created with ID: %s on address %s", s.node.Self.ID, s.node.Self.Address)
 
-	// Give the bootstrap node a moment to start its listener
-	time.Sleep(100 * time.Millisecond)
+	if s.bootstrapAddress != "" {
+		log.Printf("Attempting to join network via bootstrap node at %s", s.bootstrapAddress)
 
-	/*// 2. Create a Second Node
-	joiningNode, err := kademlia.NewKademliaNode("127.0.0.1", 8001)
-	if err != nil {
-		log.Fatal("Failed to create second node:", err)
-	}
-	log.Printf("Joining node created with ID: %s", joiningNode.Self.ID)
+		dummyContact := kademlia.NewContact(kademlia.NewRandomKademliaID(), s.bootstrapAddress)
 
-	// 3. Join the Network
-	// The joining node needs the contact info of the bootstrap node to connect.
-	bootstrapContact := kademlia.NewContact(bootstrapNode.Self.ID, bootstrapNode.Self.Address)
-	log.Printf("Joining node is connecting to bootstrap node at %s", bootstrapContact.Address)
-	joiningNode.JoinNetwork(&bootstrapContact)
+		// Ping the bootstrap node. We only care about success or failure.
+		var err error
 
-	// Give the join process a moment to run
-	time.Sleep(1 * time.Second)
+		maxRetries := 5
+		retryDelay := 20 * time.Second
 
-	// 4. Perform a Lookup
-	// Have the joining node look for the bootstrap node's ID.
-	log.Printf("Joining node is now looking for bootstrap node's ID: %s", bootstrapNode.Self.ID)
-	foundContacts := joiningNode.IterativeFindNode(bootstrapNode.Self.ID)
-
-	// 5. Print the results
-	if len(foundContacts) > 0 {
-		log.Println("Lookup successful! Found contacts:")
-		for _, contact := range foundContacts {
-			fmt.Printf("  - Contact: %+v, Distance: %s\n", contact, contact.ID.CalcDistance(bootstrapNode.Self.ID))
+		for i := 0; i < maxRetries; i++ {
+			err = s.node.SendPing(&dummyContact)
+			if err == nil {
+				// Success!
+				log.Printf("Successfully pinged bootstrap node. ")
+				break
+			}
+			log.Printf("Failed to ping bootstrap node (attempt %d/%d): %v. Retrying in %v...", i+1, maxRetries, err, retryDelay)
+			time.Sleep(retryDelay)
 		}
-	} else {
-		log.Println("Lookup failed: No contacts found.")
-	}
 
-	// 6. Keep the program running so the nodes can listen in the background
-	log.Println("Network is running. Press Ctrl+C to exit.")*/
+		if err != nil {
+			// If it's still failing after all retries, then we exit.
+			log.Fatalf("Could not connect to bootstrap node after %d attempts. Exiting.", maxRetries)
+		}
+
+		// Find the full contact info from our routing table.
+		// Note: The bootstrap node should be the ONLY contact at this point.
+		contacts := s.node.RoutingTable.FindClosestContacts(dummyContact.ID, 1)
+		if len(contacts) < 1 {
+			log.Fatal("Bootstrap contact not found in routing table after successful ping.")
+		}
+
+		bootstrapContact := contacts[0]
+		log.Printf("Found bootstrap contact: %v", bootstrapContact)
+
+		// Now, join the network using the real, complete contact info.
+		s.node.JoinNetwork(&bootstrapContact)
+	} else {
+		log.Println("No bootstrap address provided. Starting as a bootstrap node.")
+	}
 
 	connCh := make(chan net.Conn)
 	errCh := make(chan error)
@@ -149,12 +158,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 		case "get":
 			// TODO: SEND BACK CONTACT
 			var response *string
-			_, response = s.bootstrapNode.LookupValue(splitRequest[1])
+			_, response = s.node.LookupValue(splitRequest[1])
 			reply(conn, *response)
 		case "put":
 			// TODO: CHANGE IF VALUE NOT STORED WELL
 			var key string
-			key, _ = s.bootstrapNode.IterativeStore(splitRequest[2])
+			key, _ = s.node.IterativeStore(splitRequest[2])
 			reply(conn, key)
 		}
 	}

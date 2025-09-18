@@ -22,6 +22,8 @@ func (kademlia *Kademlia) SendPing(contact *Contact) error {
 
 	pingMsg := NewPingMessage(kademlia.Self, *rpcID, *contact)
 
+	fmt.Printf("PING message: %+v\n", pingMsg)
+
 	err := kademlia.Network.SendMessage(contact.Address, pingMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send ping: %w", err)
@@ -32,7 +34,7 @@ func (kademlia *Kademlia) SendPing(contact *Contact) error {
 		fmt.Printf("Received PONG from %s with ID %s\n", contact.Address, hex.EncodeToString(pongMsg.RPCID[:]))
 		return nil
 
-	case <-time.After(3 * time.Second):
+	case <-time.After(10 * time.Second):
 		return fmt.Errorf("ping to %s timed out", contact.Address)
 	}
 }
