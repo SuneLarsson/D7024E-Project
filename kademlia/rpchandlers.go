@@ -10,7 +10,6 @@ import (
 
 func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 	kademlia.RoutingTable.AddContact(msg.From)
-
 	switch msg.Type {
 	case PING:
 		kademlia.handlePing(msg)
