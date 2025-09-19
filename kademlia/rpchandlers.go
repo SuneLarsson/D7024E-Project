@@ -9,7 +9,12 @@ import (
 )
 
 func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
+	// Update the sender's address in the Contact
+	msg.From.Address = addr.String()
 	kademlia.RoutingTable.AddContact(msg.From)
+
+	fmt.Printf("Received message of type %s from %s\n", msg.Type, msg.From.Address)
+	fmt.Printf("Message details: %+v\n", msg)
 
 	switch msg.Type {
 	case PING:
@@ -48,8 +53,6 @@ func (k *Kademlia) handleResponse(msg Message) {
 func (kademlia *Kademlia) handlePing(msg Message) {
 	fmt.Printf("Received PING from %s\n", msg.From.Address)
 	pong := NewPongMessage(kademlia.Self, msg.RPCID, msg.From)
-	fmt.Printf("Sending PONG to %s\n", msg.From.Address)
-	fmt.Printf("PONG message: %+v\n", pong)
 	kademlia.Network.SendMessage(msg.From.Address, pong)
 }
 

@@ -63,17 +63,17 @@ func (s *Server) Listen() {
 		var err error
 
 		maxRetries := 5
-		retryDelay := 20 * time.Second
+		retryDelay := 2 * time.Second
 
 		for i := 0; i < maxRetries; i++ {
 			err = s.node.SendPing(&dummyContact)
 			if err == nil {
-				// Success!
 				log.Printf("Successfully pinged bootstrap node. ")
 				break
 			}
 			log.Printf("Failed to ping bootstrap node (attempt %d/%d): %v. Retrying in %v...", i+1, maxRetries, err, retryDelay)
 			time.Sleep(retryDelay)
+			retryDelay *= 2 // Exponential backoff
 		}
 
 		if err != nil {
@@ -124,7 +124,7 @@ func (s *Server) Listen() {
 		case err := <-errCh:
 			//TODO
 			fmt.Println("Error on connection:", err)
-		case <-time.After(1 * time.Second):
+		case <-time.After(3 * time.Second):
 
 		}
 
@@ -163,7 +163,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		case "put":
 			// TODO: CHANGE IF VALUE NOT STORED WELL
 			var key string
-			key, _ = s.node.IterativeStore(splitRequest[2])
+			key, _ = s.node.IterativeStore(splitRequest[1])
 			reply(conn, key)
 		}
 	}

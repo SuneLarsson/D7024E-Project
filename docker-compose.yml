@@ -14,11 +14,11 @@ services:
     tty: true
     deploy:
       mode: replicated
-      replicas: 1
+      replicas: 49
       restart_policy:
         condition: on-failure
         delay: 5s
-        max_attempts: 2
+        max_attempts: 5
         window: 10s
     networks:
       - kademlia_network

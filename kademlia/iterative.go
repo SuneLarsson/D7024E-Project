@@ -13,6 +13,11 @@ func (kademlia *Kademlia) LookupNode(target string) []Contact {
 
 func (kademlia *Kademlia) LookupValue(target string) ([]Contact, *string) {
 	targetId := NewKademliaID(target)
+	// TODO if the value exists in the local datastore should we return it directly?
+	// dataItem, exists := kademlia.DataStore.Get(targetId.String())
+	// if exists {
+	// 	return nil, &dataItem
+	// }
 	return kademlia.IterativeFindValue(targetId)
 }
 
@@ -40,6 +45,9 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID) ([]Contact, *st
 		responseChan := make(chan findValueResponse, len(nodesToQuery))
 		for _, c := range nodesToQuery {
 			queried[c.ID.String()] = true
+			if kademlia.Self.ID.Equals(c.ID) {
+				continue
+			}
 			go func(contact Contact) {
 				// Use the FindValue RPC instead of FindNode
 				contacts, found, val := kademlia.FindValue(&contact, target)
@@ -153,6 +161,10 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
 		for _, c := range nodesToQuery {
 			queried[c.ID.String()] = true
 			// contacts, _, _ := kademlia.FindNode(&c, target)
+			if kademlia.Self.ID.Equals(c.ID) {
+				continue
+			}
+
 			go func(contact Contact) {
 				contacts, _, _ := kademlia.FindNode(&contact, target)
 				responseChan <- contacts
