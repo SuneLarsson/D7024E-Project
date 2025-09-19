@@ -9,7 +9,13 @@ import (
 )
 
 func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
+	// Update the sender's address in the Contact
+	msg.From.Address = addr.String()
 	kademlia.RoutingTable.AddContact(msg.From)
+
+	fmt.Printf("Received message of type %s from %s\n", msg.Type, msg.From.Address)
+	fmt.Printf("Message details: %+v\n", msg)
+
 	switch msg.Type {
 	case PING:
 		kademlia.handlePing(msg)
@@ -34,6 +40,7 @@ func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 
 // General dispatch for responses that are "final"
 func (k *Kademlia) handleResponse(msg Message) {
+	fmt.Printf("Received response of type %s from %s\n", msg.Type, msg.From.Address)
 	dispatchRequest := MapRequest{
 		rpcID:       msg.RPCID,
 		responseMsg: msg,

@@ -3,6 +3,7 @@ package kademlia
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 )
 
@@ -30,8 +31,11 @@ func (network *Network) Listen() error {
 	defer network.Conn.Close()
 	for {
 
-		buffer := make([]byte, 2048)
+		buffer := make([]byte, 20480)
 		len, remoteAddr, err := network.Conn.ReadFromUDP(buffer)
+
+		log.Printf("DEBUG: Received %d bytes from %s", len, remoteAddr)
+
 		if err != nil {
 			fmt.Println("Error reading from UDP:", err)
 			continue
@@ -56,7 +60,7 @@ func (network *Network) SendMessage(addr string, msg *Message) error {
 		return err
 	}
 
-	data, err := json.Marshal(msg) //Kanske byt till protobuf
+	data, err := json.Marshal(msg)
 	if err != nil {
 		fmt.Println("Error marshaling message:", err)
 		return err

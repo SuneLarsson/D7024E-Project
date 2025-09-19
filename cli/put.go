@@ -18,7 +18,7 @@ var PutCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		conn := server.ConnectToServer(server.DEFAULT_SOCKET)
 		defer conn.Close()
-		server.SendMessage(conn, "put"+server.SEPARATING_STRING+args[0]+server.SEPARATING_STRING+args[1])
+		server.SendMessage(conn, "put"+server.SEPARATING_STRING+args[0])
 		response := server.ListenToResponse(conn)
 		fmt.Println("Value stored at key", response)
 	},

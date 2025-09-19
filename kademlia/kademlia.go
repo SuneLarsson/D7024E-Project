@@ -3,6 +3,7 @@ package kademlia
 import (
 	"d7024e/storage"
 	"fmt"
+	"log"
 	"net"
 	"time"
 )
@@ -33,20 +34,27 @@ type DataItem struct {
 }
 
 func NewKademliaNode(ip string, port int) (*Kademlia, error) {
-
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", ip, port))
+	// 1. Resolve the listening address (using "0.0.0.0" is correct here)
+	listenAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", "0.0.0.0", port))
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := net.ListenUDP("udp", addr)
+	conn, err := net.ListenUDP("udp", listenAddr)
 	if err != nil {
 		return nil, err
 	}
 
+	outboundIP, err := getOutboundIP()
+	if err != nil {
+		log.Printf("Could not determine outbound IP, falling back to localhost: %v", err)
+		outboundIP = "127.0.0.1" // Fallback for local testing
+	}
+
+	// 3. Create the Contact with the CORRECT, public address
 	contact := Contact{
 		ID:       NewRandomKademliaID(),
-		Address:  addr.String(),
+		Address:  fmt.Sprintf("%s:%d", outboundIP, port), // Use the discovered IP
 		distance: nil,
 	}
 
@@ -112,4 +120,14 @@ func (kademlia *Kademlia) RefreshBucket(idx int) {
 	}
 }
 
-// Our implementation of LookupNode
+// Helper function to get the outbound IP address
+func getOutboundIP() (string, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String(), nil
+}

@@ -22,6 +22,9 @@ func (kademlia *Kademlia) SendPing(contact *Contact) error {
 
 	pingMsg := NewPingMessage(kademlia.Self, *rpcID, *contact)
 
+	fmt.Printf("PING message: %+v\n", pingMsg)
+	fmt.Printf("Sending PING to %s \n", contact.Address)
+
 	err := kademlia.Network.SendMessage(contact.Address, pingMsg)
 	if err != nil {
 		return fmt.Errorf("failed to send ping: %w", err)

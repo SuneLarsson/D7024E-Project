@@ -8,7 +8,7 @@ import (
 func TestReply(t *testing.T) {
 
 	socketPath := DEFAULT_SOCKET
-	server := NewServer(socketPath)
+	server := NewServer(socketPath, "")
 
 	ch := make(chan string, 1)
 
@@ -36,7 +36,7 @@ func TestReply(t *testing.T) {
 
 func TestExitWorking(t *testing.T) {
 	socketPath := DEFAULT_SOCKET
-	server := NewServer(socketPath)
+	server := NewServer(socketPath, "")
 
 	ch := make(chan string, 1)
 
