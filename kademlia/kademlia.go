@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-const kSize = 20 // Bucket size
-const alpha = 3  // Concurrency
+// const kSize = 20 // Bucket size
+// const alpha = 3  // Concurrency
 
 // Kademlia structure
 
@@ -94,7 +94,7 @@ func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 	kademlia.RoutingTable.AddContact(*knownContact)
 
 	//3. Run an Iterative Find Node on Self
-	kademlia.IterativeFindNode(kademlia.Self.ID)
+	kademlia.IterativeFindNode(kademlia.Self.ID, 3, 20)
 
 	//4. Refresh bucket further away than closest
 	// neighbor
@@ -108,7 +108,7 @@ func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 func (kademlia *Kademlia) RefreshBucket(idx int) {
 	contact := kademlia.RoutingTable.buckets[idx].getContactForBucketRefresh()
 	if contact.ID != nil {
-		kademlia.IterativeFindNode(contact.ID)
+		kademlia.IterativeFindNode(contact.ID, 3, 20)
 	}
 }
 

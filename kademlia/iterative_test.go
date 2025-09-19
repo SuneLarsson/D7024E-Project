@@ -42,7 +42,7 @@ func TestIterativeFindNode(t *testing.T) {
 		nodeA.RoutingTable.AddContact(nodeC.Self)
 
 		target := NewRandomKademliaID()
-		result := nodeA.IterativeFindNode(target)
+		result := nodeA.IterativeFindNode(target, 3, 20)
 
 		ids := getIDs(result)
 		assert.Contains(t, ids, nodeB.Self.ID.String(), "Result should contain nodeB")
@@ -54,7 +54,7 @@ func TestIterativeFindNode(t *testing.T) {
 		node := NewTestKademliaNode("nodeX", sim)
 
 		target := NewRandomKademliaID()
-		result := node.IterativeFindNode(target)
+		result := node.IterativeFindNode(target, 3, 20)
 
 		assert.Empty(t, result, "Empty routing table should yield no contacts")
 	})
@@ -72,7 +72,7 @@ func TestIterativeFindNode(t *testing.T) {
 		nodeB.RoutingTable.AddContact(nodeC.Self)
 		nodeC.RoutingTable.AddContact(nodeD.Self)
 
-		result := nodeA.IterativeFindNode(nodeD.Self.ID)
+		result := nodeA.IterativeFindNode(nodeD.Self.ID, 3, 20)
 		ids := getIDs(result)
 
 		assert.Contains(t, ids, nodeD.Self.ID.String(), "A should discover D via iterative lookup")
@@ -86,7 +86,7 @@ func TestIterativeFindNode(t *testing.T) {
 		nodeC := NewTestKademliaNode("nodeC", sim)
 		nodeA.RoutingTable.AddContact(nodeC.Self)
 
-		result := nodeA.IterativeFindNode(target)
+		result := nodeA.IterativeFindNode(target, 3, 20)
 
 		if len(result) > 1 {
 			assert.True(t, result[0].distance.Less(result[1].distance),
@@ -105,7 +105,7 @@ func TestIterativeFindValue(t *testing.T) {
 		key := hashKeyForValue(value)
 		nodeB.DataStore.Put(key.String(), value)
 
-		_, found := nodeA.IterativeFindValue(key)
+		_, found := nodeA.IterativeFindValue(key, 3, 20)
 
 		require.NotNil(t, found, "Value should not be nil")
 		assert.Equal(t, value, *found)
@@ -116,7 +116,7 @@ func TestIterativeFindValue(t *testing.T) {
 		nodeA, _ := setupTwoNodes(sim, "nodeA", "nodeB")
 
 		target := NewRandomKademliaID()
-		contacts, found := nodeA.IterativeFindValue(target)
+		contacts, found := nodeA.IterativeFindValue(target, 3, 20)
 
 		assert.Nil(t, found)
 		assert.NotEmpty(t, contacts)
@@ -136,7 +136,7 @@ func TestIterativeFindValue(t *testing.T) {
 		nodeA.RoutingTable.AddContact(nodeB.Self)
 		nodeB.RoutingTable.AddContact(nodeC.Self)
 
-		nodeA.IterativeFindValue(key)
+		nodeA.IterativeFindValue(key, 1, 20)
 
 		require.Eventually(t, func() bool {
 			stored, _ := nodeB.DataStore.Get(key.String())
@@ -194,7 +194,7 @@ func TestHelpers(t *testing.T) {
 	t.Run("pickAlpha stops at alpha limit", func(t *testing.T) {
 		candidates := &ContactCandidates{}
 		target := NewRandomKademliaID()
-
+		alpha := 3
 		// Add more contacts than alpha
 		for i := 0; i < alpha+5; i++ {
 			c := NewContact(NewRandomKademliaID(), "addr")

@@ -8,15 +8,15 @@ import (
 
 func (kademlia *Kademlia) LookupNode(target string) []Contact {
 	targetId := NewKademliaID(target)
-	return kademlia.IterativeFindNode(targetId)
+	return kademlia.IterativeFindNode(targetId, 3, 20)
 }
 
 func (kademlia *Kademlia) LookupValue(target string) ([]Contact, *string) {
 	targetId := NewKademliaID(target)
-	return kademlia.IterativeFindValue(targetId)
+	return kademlia.IterativeFindValue(targetId, 3, 20)
 }
 
-func (kademlia *Kademlia) IterativeFindValue(target *KademliaID) ([]Contact, *string) {
+func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSize int) ([]Contact, *string) {
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
 	candidates.Append(shortlist)
@@ -110,7 +110,7 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
 
 	//2. Find the k closest nodes to the key
-	closest := kademlia.IterativeFindNode(key)
+	closest := kademlia.IterativeFindNode(key, 3, 20)
 	// closest := kademlia.IterativeFindNode(key)
 	//3. Send STORE RPCs to those nodes
 	successCount := 0
@@ -134,7 +134,7 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	return key.String(), successCount > 0
 }
 
-func (kademlia *Kademlia) IterativeFindNode(target *KademliaID) []Contact {
+func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize int) []Contact {
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
 	candidates.Append(shortlist)
