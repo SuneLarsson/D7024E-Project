@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"container/list"
+	"math/rand"
 )
 
 // bucket definition
@@ -38,7 +39,7 @@ func (bucket *bucket) AddContact(contact Contact) {
 	}
 }
 
-// GetContactAndCalcDistance returns an array of Contacts where 
+// GetContactAndCalcDistance returns an array of Contacts where
 // the distance has already been calculated
 func (bucket *bucket) GetContactAndCalcDistance(target *KademliaID) []Contact {
 	var contacts []Contact
@@ -55,4 +56,17 @@ func (bucket *bucket) GetContactAndCalcDistance(target *KademliaID) []Contact {
 // Len return the size of the bucket
 func (bucket *bucket) Len() int {
 	return bucket.list.Len()
+}
+
+// Refresh bucket the node selects a random number in that range and does a refresh, an iterativeFindNode using that number as key.
+func (bucket *bucket) getContactForBucketRefresh() Contact {
+	if bucket.list.Len() == 0 {
+		return Contact{ID: nil} // Return a contact with a nil ID
+	}
+	randomIndex := rand.Intn(bucket.list.Len())
+	element := bucket.list.Front()
+	for i := 0; i < randomIndex; i++ {
+		element = element.Next()
+	}
+	return element.Value.(Contact)
 }

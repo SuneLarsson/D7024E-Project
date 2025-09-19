@@ -1,28 +1,19 @@
 package main
 
 import (
-	"d7024e/kademlia"
+	"d7024e/server"
 	"fmt"
-	"log"
-	"net/http"
+	"os"
 )
 
 func main() {
-	fmt.Println("Starting Kademlia node...")
+	fmt.Println("Starting Kademlia network simulation...")
 
-	// This is the code from your original main.go
-	id := kademlia.NewKademliaID("FFFFFFFF00000000000000000000000000000000")
-	contact := kademlia.NewContact(id, "localhost:8000")
-	fmt.Println("My contact info:", contact.String())
+	// Read the bootstrap address from an environment variable.
+	bootstrapAddress := os.Getenv("BOOTSTRAP_ADDRESS")
 
-	// To keep the container running, we start a simple web server.
-	// This is a common pattern for services that need to stay alive.
-	// It will listen for HTTP requests on port 8080.
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello! I am a Kademlia node.")
-	})
+	// TODO: REMOVE WHEN KADEMLIA IS LISTENING
+	serv := server.NewServer(server.DEFAULT_SOCKET, bootstrapAddress)
+	serv.Listen()
 
-	// The log.Fatal will cause the program to exit if the server fails to start.
-	log.Println("Node is running and listening on port 8080.")
-	log.Fatal(http.ListenAndServe(":8080", nil))
 }

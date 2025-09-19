@@ -2,7 +2,11 @@ package kademlia
 
 import (
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"math/rand"
+	"time"
+	"unicode/utf8"
 )
 
 // the static number of bytes in a KademliaID
@@ -53,7 +57,7 @@ func (kademliaID KademliaID) Equals(otherKademliaID *KademliaID) bool {
 	return true
 }
 
-// CalcDistance returns a new instance of a KademliaID that is built 
+// CalcDistance returns a new instance of a KademliaID that is built
 // through a bitwise XOR operation betweeen kademliaID and target
 func (kademliaID KademliaID) CalcDistance(target *KademliaID) *KademliaID {
 	result := KademliaID{}
@@ -66,4 +70,25 @@ func (kademliaID KademliaID) CalcDistance(target *KademliaID) *KademliaID {
 // String returns a simple string representation of a KademliaID
 func (kademliaID *KademliaID) String() string {
 	return hex.EncodeToString(kademliaID[0:IDLength])
+}
+
+// NewDataItem is a constructor that validates the input value.
+func (kademlia *Kademlia) NewDataItem(value string) (*DataItem, error) {
+	MaxValueLength := 255 // Define a maximum length for the value
+	// 1. Check the byte length of the string.
+	if len(value) > MaxValueLength {
+		return nil, fmt.Errorf("value exceeds maximum length of %d bytes", MaxValueLength)
+	}
+
+	// 2. Check if the string is valid UTF-8.
+	if !utf8.ValidString(value) {
+		return nil, errors.New("value is not a valid UTF-8 string")
+	}
+
+	// All checks passed, create and return the struct.
+	item := &DataItem{
+		value:      value,
+		timeToLive: time.Now().Add(24 * time.Hour), // Example TTL
+	}
+	return item, nil
 }
