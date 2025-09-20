@@ -16,8 +16,6 @@ import (
 const SEPARATING_STRING string = ":"
 const DEFAULT_SOCKET string = "/tmp/svc.sock"
 
-var nbPortListenedTo int = 0
-
 type Server struct {
 	socketPath       string
 	exitNode         bool

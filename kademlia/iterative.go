@@ -43,9 +43,11 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 		}
 
 		responseChan := make(chan findValueResponse, len(nodesToQuery))
+		nbAwaitedAnswer := len(nodesToQuery)
 		for _, c := range nodesToQuery {
 			queried[c.ID.String()] = true
 			if kademlia.Self.ID.Equals(c.ID) {
+				nbAwaitedAnswer--
 				continue
 			}
 			go func(contact Contact) {
@@ -60,7 +62,7 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 		}
 
 		var roundResponses []findValueResponse
-		for i := 0; i < len(nodesToQuery); i++ {
+		for i := 0; i < nbAwaitedAnswer; i++ {
 			roundResponses = append(roundResponses, <-responseChan)
 		}
 
@@ -122,13 +124,20 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	// closest := kademlia.IterativeFindNode(key)
 	//3. Send STORE RPCs to those nodes
 	successCount := 0
+	chStore := make(chan bool, len(closest))
 
 	for _, contact := range closest {
-		result := kademlia.Store(&contact, value, key.String())
-		if result {
+		go func() {
+			chStore <- kademlia.Store(&contact, value, key.String())
+		}()
+	}
+
+	for range len(closest) {
+		if <-chStore {
 			successCount++
 		}
 	}
+
 	// If at least one STORE was successful, consider it a success
 	// and print the number of successful stores
 	// Otherwise, print a failure message
@@ -158,10 +167,12 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 		}
 
 		responseChan := make(chan []Contact, len(nodesToQuery))
+		nbAwaitedAnswer := len(nodesToQuery)
 		for _, c := range nodesToQuery {
 			queried[c.ID.String()] = true
 			// contacts, _, _ := kademlia.FindNode(&c, target)
 			if kademlia.Self.ID.Equals(c.ID) {
+				nbAwaitedAnswer--
 				continue
 			}
 
@@ -172,7 +183,7 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 		}
 
 		progress := false
-		for i := 0; i < len(nodesToQuery); i++ {
+		for i := 0; i < nbAwaitedAnswer; i++ {
 			newContacts := <-responseChan
 			if candidates.mergeAndSort(newContacts, target, kSize) {
 				progress = true
@@ -193,6 +204,7 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 		}
 
 	}
+
 	if candidates.Len() < kSize {
 		return candidates.GetContacts(candidates.Len())
 	}
