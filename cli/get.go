@@ -8,10 +8,10 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(GetCmd)
+	rootCmd.AddCommand(getCmd)
 }
 
-var GetCmd = &cobra.Command{
+var getCmd = &cobra.Command{
 	Use:   "get",
 	Short: "Get a value",
 	Long:  "Get a value",

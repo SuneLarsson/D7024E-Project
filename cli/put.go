@@ -8,10 +8,10 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(PutCmd)
+	rootCmd.AddCommand(putCmd)
 }
 
-var PutCmd = &cobra.Command{
+var putCmd = &cobra.Command{
 	Use:   "put",
 	Short: "Upload a file",
 	Long:  "Upload a file",

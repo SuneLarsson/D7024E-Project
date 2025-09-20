@@ -7,10 +7,10 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(ExitCmd)
+	rootCmd.AddCommand(exitCmd)
 }
 
-var ExitCmd = &cobra.Command{
+var exitCmd = &cobra.Command{
 	Use:   "exit",
 	Short: "Terminate the node",
 	Long:  "Terminate the node",
