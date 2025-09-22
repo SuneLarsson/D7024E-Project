@@ -135,21 +135,23 @@ func (kademlia *Kademlia) FindValue(contact *Contact, target *KademliaID) ([]Con
 	case resp := <-req.responseChan:
 		if resp.Type == FIND_VALUE_RESPONSE {
 			var value *string
-			var contacts []Contact
-			if err := json.Unmarshal(resp.Payload, &value); err != nil {
-				// If unmarshaling to string fails, try unmarshaling to contacts
-				if err := json.Unmarshal(resp.Payload, &contacts); err != nil {
-					fmt.Println("Error unmarshaling value or contacts:", err)
-					return nil, false, nil
+			if err := json.Unmarshal(resp.Payload, &value); err == nil {
+				// Case 1: Node had a value
+				if value != nil {
+					return nil, true, value
 				}
-				// If we got contacts, return them with a false flag
+				// Case 2: Node explicitly had no value (nil string)
+				return nil, false, nil
+			}
+
+			// Case 3: Try contacts instead
+			var contacts []Contact
+			if err := json.Unmarshal(resp.Payload, &contacts); err == nil {
 				return contacts, false, nil
 			}
-			// If we got a value, return it with a true flag
-			if value == nil {
-				return contacts, false, nil // No value found, return contacts
-			}
-			return nil, true, value
+
+			fmt.Println("Error unmarshaling FIND_VALUE_RESPONSE:", err)
+			return nil, false, nil
 		}
 	case <-time.After(3 * time.Second):
 		// Timeout

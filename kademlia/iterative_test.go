@@ -122,27 +122,58 @@ func TestIterativeFindValue(t *testing.T) {
 		assert.NotEmpty(t, contacts)
 	})
 
-	t.Run("Caches value in closest node without value", func(t *testing.T) {
+	t.Run("Caches value in closest node without value (deterministic IDs)", func(t *testing.T) {
 		sim := NewSimulatedNetwork()
+
+		value := "forceCacheHere"
+		key := hashKeyForValue(value) // sha1(value)
+
+		//  key cbd2113b7d589122ff85128f173d10e07e822020
+		//   B ends with ...f0  -> XOR = 0x0f
+		//   C ends with ...01  -> XOR = 0xff
+
+		idA := NewKademliaID("0000000000000000000000000000000000000001")
+		idB := NewKademliaID(key.String())
+		idB[19] ^= 0x01
+		idC := NewKademliaID("0000000000000000000000000000000000000000")
+
 		nodeA := NewTestKademliaNode("nodeA", sim)
 		nodeB := NewTestKademliaNode("nodeB", sim)
 		nodeC := NewTestKademliaNode("nodeC", sim)
 
-		value := "closestGetsValue"
-		key := hashKeyForValue(value)
+		// Override IDs
+		nodeA.Self.ID = idA
+		nodeB.Self.ID = idB
+		nodeC.Self.ID = idC
+
+		//Verify distances
+		distB := idB.CalcDistance(key)
+		distC := idC.CalcDistance(key)
+		require.True(t, distB.Less(distC),
+			"Test setup invalid: B (%s) must be closer to key %s than C (%s)",
+			idB, key, idC)
+
+		// Seed C with the value under the correct key
 		nodeC.DataStore.Put(key.String(), value)
 
 		// Chain: A → B → C
 		nodeA.RoutingTable.AddContact(nodeB.Self)
 		nodeB.RoutingTable.AddContact(nodeC.Self)
 
+		// Perform lookup
 		nodeA.IterativeFindValue(key, 1, 20)
 
+		// Verify: B should eventually cache the value, A should not
 		require.Eventually(t, func() bool {
-			stored, _ := nodeB.DataStore.Get(key.String())
-			return stored == value
-		}, time.Second, 50*time.Millisecond,
-			"NodeB should eventually cache the value")
+			storedB, existsB := nodeB.DataStore.Get(key.String())
+			storedA, existsA := nodeA.DataStore.Get(key.String())
+
+			// log for debugging
+			t.Logf("A.has=%v, value=%q | B.has=%v, value=%q", existsA, storedA, existsB, storedB)
+
+			return !existsA && existsB && storedB == value
+		}, 2*time.Second, 50*time.Millisecond,
+			"NodeB should eventually cache the value, and A should not")
 	})
 
 }

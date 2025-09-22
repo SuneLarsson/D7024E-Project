@@ -21,6 +21,13 @@ func (kademlia *Kademlia) LookupValue(target string) ([]Contact, *string) {
 	return kademlia.IterativeFindValue(targetId, 3, 20)
 }
 
+func idsOf(contacts []Contact) []string {
+	ids := make([]string, len(contacts))
+	for i, c := range contacts {
+		ids[i] = c.ID.String()
+	}
+	return ids
+}
 func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSize int) ([]Contact, *string) {
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
@@ -33,9 +40,10 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 		nodesToQuery := candidates.pickAlpha(queried, alpha)
 
 		if len(nodesToQuery) == 0 {
+			fmt.Println("[IterativeFindValue] No more nodes to query, stopping")
 			break
 		}
-
+		fmt.Printf("[IterativeFindValue] Querying %d nodes: %v\n", len(nodesToQuery), idsOf(nodesToQuery))
 		type findValueResponse struct {
 			from     *Contact
 			contacts []Contact
