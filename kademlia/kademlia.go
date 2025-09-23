@@ -64,7 +64,7 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 		Self:         contact,
 		RoutingTable: routingtable,
 		mapManagerCh: make(chan MapRequest),
-		DataStore:    *storage.NewStorage(),
+		DataStore:    *storage.NewStorageWithTTL(10 * time.Second),
 	}
 
 	network := NewNetwork(contact, conn, kademlia.HandleMessage)
@@ -73,6 +73,7 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 
 	go kademlia.Network.Listen()
 	go kademlia.managePendingRequests()
+	go kademlia.RunPeriodicCleanup(5 * time.Second)
 
 	return kademlia, nil
 }
@@ -130,4 +131,12 @@ func getOutboundIP() (string, error) {
 
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 	return localAddr.IP.String(), nil
+}
+
+func (kademlia *Kademlia) RunPeriodicCleanup(interval time.Duration) {
+
+	for {
+		time.Sleep(interval)
+		kademlia.DataStore.Clean()
+	}
 }

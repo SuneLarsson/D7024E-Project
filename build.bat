@@ -19,3 +19,4 @@ echo Step 5: Deploying stack 'kademlia-app'...
 docker stack deploy -c docker-compose.yml kademlia-app
 
 echo --- Deployment Complete ---
+

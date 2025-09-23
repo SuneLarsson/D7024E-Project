@@ -17,10 +17,20 @@ type StoredInfo struct {
 type Storage struct {
 	mutex   sync.Mutex
 	hashmap map[string]*StoredInfo
+	ttl     time.Duration
 }
 
+func NewStorageWithTTL(ttl time.Duration) *Storage {
+	return &Storage{
+		hashmap: make(map[string]*StoredInfo),
+		ttl:     ttl,
+	}
+}
 func NewStorage() *Storage {
-	return &Storage{hashmap: make(map[string]*StoredInfo)}
+	return &Storage{
+		hashmap: make(map[string]*StoredInfo),
+		ttl:     24 * time.Hour,
+	}
 }
 
 func (storage *Storage) Get(key string) (string, bool) {
@@ -49,7 +59,7 @@ func (storage *Storage) PutWithTimestamp(key string, value string, timestamp int
 	if value == "" {
 		panic(ERR_INVALIDVALUE)
 	}
-	if !isTimestampValid(timestamp) {
+	if !storage.isTimestampValid(timestamp) {
 		panic(ERR_INVALIDTIMESTAMP)
 	}
 	storage.mutex.Lock()
@@ -65,12 +75,12 @@ func (storage *Storage) Clean() {
 	storage.mutex.Lock()
 	defer storage.mutex.Unlock()
 	for k, v := range storage.hashmap {
-		if !isTimestampValid(v.timestamp) {
+		if !storage.isTimestampValid(v.timestamp) {
 			delete(storage.hashmap, k)
 		}
 	}
 }
 
-func isTimestampValid(timestamp int64) bool {
-	return time.Now().UnixMilli()-timestamp <= 86400000
+func (storage *Storage) isTimestampValid(timestamp int64) bool {
+	return time.Now().UnixMilli()-timestamp <= storage.ttl.Milliseconds()
 }
