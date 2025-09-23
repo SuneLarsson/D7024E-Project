@@ -159,3 +159,36 @@ func (kademlia *Kademlia) FindValue(contact *Contact, target *KademliaID) ([]Con
 	}
 	return nil, false, nil
 }
+
+func (kademlia *Kademlia) Refresh(contact *Contact, key string) bool {
+	rpcID := *NewRandomKademliaID()
+
+	req := MapRequest{
+		rpcID:        rpcID,
+		responseChan: make(chan Message, 1),
+		register:     true,
+	}
+	kademlia.mapManagerCh <- req
+
+	refreshMsg := NewRefreshMessage(kademlia.Self, rpcID, *contact, key)
+	err := kademlia.Network.SendMessage(contact.Address, refreshMsg)
+	if err != nil {
+		fmt.Println("Error sending REFRESH message:", err)
+	}
+	select {
+	case resp := <-req.responseChan:
+		if resp.Type == REFRESH_RESPONSE {
+			var result bool
+			if err := json.Unmarshal(resp.Payload, &result); err != nil {
+				fmt.Println("Error unmarshaling result:", err)
+				return false
+			}
+			return result
+		}
+	case <-time.After(3 * time.Second):
+		// Timeout
+		fmt.Println("Refresh request timed out")
+		return false
+	}
+	return false
+}

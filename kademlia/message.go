@@ -13,6 +13,8 @@ const (
 	FIND_NODE_RESPONSE  MessageType = "FIND_NODE_RESPONSE"
 	FIND_VALUE          MessageType = "FIND_VALUE"
 	FIND_VALUE_RESPONSE MessageType = "FIND_VALUE_RESPONSE"
+	REFRESH             MessageType = "REFRESH"
+	REFRESH_RESPONSE    MessageType = "REFRESH_RESPONSE"
 )
 
 type Message struct {
@@ -109,6 +111,26 @@ func NewFindValueResponseMessage(from Contact, rpcID KademliaID, to Contact, val
 		From:    from,
 		To:      to,
 		Payload: payload,
+		RPCID:   rpcID,
+	}
+}
+func NewRefreshMessage(from Contact, rpcID KademliaID, to Contact, key string) *Message {
+	keyBytes, _ := json.Marshal(key)
+	return &Message{
+		Type:    REFRESH,
+		From:    from,
+		To:      to,
+		Payload: keyBytes,
+		RPCID:   rpcID,
+	}
+}
+func NewRefreshResponseMessage(from Contact, rpcID KademliaID, to Contact, result bool) *Message {
+	resultBytes, _ := json.Marshal(result)
+	return &Message{
+		Type:    REFRESH_RESPONSE,
+		From:    from,
+		To:      to,
+		Payload: resultBytes,
 		RPCID:   rpcID,
 	}
 }

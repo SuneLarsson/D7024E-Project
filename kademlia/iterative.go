@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"time"
 )
 
 func (kademlia *Kademlia) LookupNode(target string) []Contact {
@@ -151,12 +152,26 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	// Otherwise, print a failure message
 	if successCount > 0 {
 		fmt.Printf("Successfully stored value on %d nodes\n", successCount)
+		go func(key *KademliaID) {
+			ticker := time.NewTicker(12 * time.Hour)
+			defer ticker.Stop()
+			for range ticker.C {
+				kademlia.IterativeRefresh(key, 3)
+			}
+		}(key)
 	} else {
 		fmt.Println("Failed to store value on any node")
 	}
 
 	//4. If a node does not respond, find a replacement node and send STORE to it // Optional
 	return key.String(), successCount > 0
+}
+
+func (kademlia *Kademlia) IterativeRefresh(key *KademliaID, kSize int) {
+	contact := kademlia.RoutingTable.FindClosestContacts(key, kSize)
+	for _, c := range contact {
+		go kademlia.Refresh(&c, key.String())
+	}
 }
 
 func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize int) []Contact {

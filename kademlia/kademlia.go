@@ -64,7 +64,8 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 		Self:         contact,
 		RoutingTable: routingtable,
 		mapManagerCh: make(chan MapRequest),
-		DataStore:    *storage.NewStorageWithTTL(10 * time.Second),
+		DataStore:    *storage.NewStorage(),
+		// *storage.NewStorageWithTTL(60 * time.Second),
 	}
 
 	network := NewNetwork(contact, conn, kademlia.HandleMessage)
