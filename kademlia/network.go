@@ -3,7 +3,6 @@ package kademlia
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 )
 
@@ -34,10 +33,10 @@ func (network *Network) Listen() error {
 		buffer := make([]byte, 20480)
 		len, remoteAddr, err := network.Conn.ReadFromUDP(buffer)
 
-		log.Printf("DEBUG: Received %d bytes from %s", len, remoteAddr)
+		// log.Printf("DEBUG: Received %d bytes from %s", len, remoteAddr)
 
 		if err != nil {
-			fmt.Println("Error reading from UDP:", err)
+			// fmt.Println("Error reading from UDP:", err)
 			continue
 		}
 

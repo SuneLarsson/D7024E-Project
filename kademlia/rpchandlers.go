@@ -15,8 +15,8 @@ func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 	}
 	kademlia.RoutingTable.AddContact(msg.From)
 
-	fmt.Printf("Received message of type %s from %s\n", msg.Type, msg.From.Address)
-	fmt.Printf("Message details: %+v\n", msg)
+	// fmt.Printf("Received message of type %s from %s\n", msg.Type, msg.From.Address)
+	// fmt.Printf("Message details: %+v\n", msg)
 
 	switch msg.Type {
 	case PING:
@@ -42,7 +42,7 @@ func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 
 // General dispatch for responses that are "final"
 func (k *Kademlia) handleResponse(msg Message) {
-	fmt.Printf("Received response of type %s from %s\n", msg.Type, msg.From.Address)
+	// fmt.Printf("Received response of type %s from %s\n", msg.Type, msg.From.Address)
 	dispatchRequest := MapRequest{
 		rpcID:       msg.RPCID,
 		responseMsg: msg,
@@ -53,13 +53,13 @@ func (k *Kademlia) handleResponse(msg Message) {
 }
 
 func (kademlia *Kademlia) handlePing(msg Message) {
-	fmt.Printf("Received PING from %s\n", msg.From.Address)
+	// fmt.Printf("Received PING from %s\n", msg.From.Address)
 	pong := NewPongMessage(kademlia.Self, msg.RPCID, msg.From)
 	kademlia.Network.SendMessage(msg.From.Address, pong)
 }
 
 func (kademlia *Kademlia) handleStore(msg Message) {
-	fmt.Printf("Received STORE from %s\n", &msg.From)
+	// fmt.Printf("Received STORE from %s\n", &msg.From)
 	var value string
 	err := json.Unmarshal(msg.Payload, &value)
 	if err != nil {
@@ -82,7 +82,7 @@ func (kademlia *Kademlia) handleStore(msg Message) {
 
 // Handle FIND_VALUE
 func (kademlia *Kademlia) handleFindValue(msg Message) {
-	fmt.Printf("Received FIND_VALUE from %s\n", &msg.From)
+	// fmt.Printf("Received FIND_VALUE from %s\n", &msg.From)
 	targetID := &KademliaID{}
 	err := json.Unmarshal(msg.Payload, targetID)
 	if err != nil {
@@ -106,7 +106,7 @@ func (kademlia *Kademlia) handleFindValue(msg Message) {
 }
 
 func (kademlia *Kademlia) handleFindNode(msg Message) {
-	fmt.Printf("Received FIND_NODE from %s\n", &msg.From)
+	// fmt.Printf("Received FIND_NODE from %s\n", &msg.From)
 	targetID := &KademliaID{}
 	err := json.Unmarshal(msg.Payload, targetID)
 	if err != nil {

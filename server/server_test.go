@@ -1,14 +1,21 @@
 package server
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
 
 func TestReply(t *testing.T) {
 
-	socketPath := DEFAULT_SOCKET
-	server := NewServer(socketPath, "")
+	socketPath := filepath.Join(os.TempDir(), "test-svc.sock")
+
+	t.Cleanup(func() {
+		os.Remove(socketPath)
+	})
+
+	server := NewServer(socketPath, "", 8000)
 
 	ch := make(chan string, 1)
 
@@ -31,12 +38,15 @@ func TestReply(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fail()
 	}
-	SendMessage(conn, "exit")
 }
 
 func TestExitWorking(t *testing.T) {
-	socketPath := DEFAULT_SOCKET
-	server := NewServer(socketPath, "")
+	socketPath := filepath.Join(os.TempDir(), "test-svc.sock")
+
+	t.Cleanup(func() {
+		os.Remove(socketPath)
+	})
+	server := NewServer(socketPath, "", 8001)
 
 	ch := make(chan string, 1)
 
@@ -45,7 +55,7 @@ func TestExitWorking(t *testing.T) {
 		ch <- "exit"
 	}()
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(3000 * time.Millisecond)
 
 	conn := ConnectToServer(socketPath)
 

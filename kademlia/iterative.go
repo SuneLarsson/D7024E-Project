@@ -140,7 +140,7 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 		}()
 	}
 
-	for range len(closest) {
+	for range closest {
 		if <-chStore {
 			successCount++
 		}

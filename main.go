@@ -13,7 +13,7 @@ func main() {
 	bootstrapAddress := os.Getenv("BOOTSTRAP_ADDRESS")
 
 	// TODO: REMOVE WHEN KADEMLIA IS LISTENING
-	serv := server.NewServer(server.DEFAULT_SOCKET, bootstrapAddress)
+	serv := server.NewServer(server.DEFAULT_SOCKET, bootstrapAddress, 8000)
 	serv.Listen()
 
 }

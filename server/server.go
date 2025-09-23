@@ -23,13 +23,15 @@ type Server struct {
 	storage          *storage.Storage
 	node             *kademlia.Kademlia
 	bootstrapAddress string
+	port             int
 }
 
-func NewServer(sockPath string, bootstrapAddress string) *Server {
+func NewServer(sockPath string, bootstrapAddress string, port int) *Server {
 	return &Server{
 		socketPath:       sockPath,
 		exitNode:         false,
 		bootstrapAddress: bootstrapAddress,
+		port:             port,
 	}
 }
 
@@ -45,7 +47,7 @@ func (s *Server) Listen() {
 		panic(err)
 	}
 
-	node, err := kademlia.NewKademliaNode("0.0.0.0", 8000)
+	node, err := kademlia.NewKademliaNode("0.0.0.0", s.port)
 	if err != nil {
 		log.Fatal("Failed to create Kademlia node:", err)
 	}
