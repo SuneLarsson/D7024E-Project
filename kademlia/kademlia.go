@@ -19,6 +19,10 @@ type Kademlia struct {
 	RoutingTable *RoutingTable
 	mapManagerCh chan MapRequest
 	DataStore    storage.Storage
+	alpha        int
+	beta         int
+	k            int
+	ttl          time.Duration
 }
 
 type MapRequest struct {
@@ -65,6 +69,10 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 		RoutingTable: routingtable,
 		mapManagerCh: make(chan MapRequest),
 		DataStore:    *storage.NewStorage(),
+		alpha:        ALPHA,
+		beta:         BETA,
+		k:            K,
+		ttl:          time.Duration(TTL) * time.Second,
 		// *storage.NewStorageWithTTL(60 * time.Second),
 	}
 

@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -146,12 +147,14 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 			successCount++
 		}
 	}
+	kademlia.DataStore.Put(key.String(), value)
+	successCount++
 
 	// If at least one STORE was successful, consider it a success
 	// and print the number of successful stores
 	// Otherwise, print a failure message
 	if successCount > 0 {
-		fmt.Printf("Successfully stored value on %d nodes\n", successCount)
+		log.Printf("Successfully stored value on %d nodes\n", successCount)
 		go func(key *KademliaID) {
 			ticker := time.NewTicker(12 * time.Hour)
 			defer ticker.Stop()
@@ -160,7 +163,7 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 			}
 		}(key)
 	} else {
-		fmt.Println("Failed to store value on any node")
+		log.Println("Failed to store value on any node")
 	}
 
 	//4. If a node does not respond, find a replacement node and send STORE to it // Optional
