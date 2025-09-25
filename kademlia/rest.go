@@ -45,8 +45,8 @@ func (k *Kademlia) handleObjectByHash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hash := r.URL.Path[len("/objects/"):]
-	if len(hash) == 0 {
-		http.Error(w, "Missing object key", http.StatusBadRequest)
+	if len(hash) != 40 {
+		http.Error(w, "Invalid key length", http.StatusBadRequest)
 		return
 	}
 	key := NewKademliaID(hash)

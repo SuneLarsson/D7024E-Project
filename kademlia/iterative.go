@@ -147,8 +147,6 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 			successCount++
 		}
 	}
-	kademlia.DataStore.Put(key.String(), value)
-	successCount++
 
 	// If at least one STORE was successful, consider it a success
 	// and print the number of successful stores

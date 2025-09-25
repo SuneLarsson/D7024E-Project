@@ -12,10 +12,10 @@ services:
     networks:
       - kademlia_network
     environment:
-      - ALPHA=${alpha}
-      - BETA=${beta}
-      - K=${k}
-      - TTL=${ttl}
+      - ALPHA=${ALPHA}
+      - BETA=${BETA}
+      - K=${K}
+      - TTL=${TTL}
     hostname: bootstrap-node
 
   joining-nodes:
@@ -34,10 +34,10 @@ services:
       - kademlia_network
     environment:
       - BOOTSTRAP_ADDRESS=bootstrap-node:8000
-      - ALPHA = ${alpha}
-      - BETA = ${beta}
-      - K = ${k}
-      - TTL = ${ttl}
+      - ALPHA=${ALPHA}
+      - BETA=${BETA}
+      - K=${K}
+      - TTL=${TTL}
     depends_on:
       - bootstrap-node
 

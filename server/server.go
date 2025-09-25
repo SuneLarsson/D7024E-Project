@@ -53,9 +53,9 @@ func (s *Server) Listen() {
 	}
 	s.node = node
 	log.Printf("Node created with ID: %s on address %s", s.node.Self.ID, s.node.Self.Address)
-
 	//Start REST server
 	go s.node.StartRESTServer(":8080")
+
 	if s.bootstrapAddress != "" {
 		log.Printf("Attempting to join network via bootstrap node at %s", s.bootstrapAddress)
 
