@@ -128,9 +128,11 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	dataToHash := []byte(value)
 	hash := sha1.Sum(dataToHash)
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
-
+	log.Printf("Storing value with key %s\n", key)
+	log.Printf("Current routing table: %v\n", *kademlia.RoutingTable)
 	//2. Find the k closest nodes to the key
 	closest := kademlia.IterativeFindNode(key, 3, 20)
+	log.Printf("Found %d closest nodes to store the value: %v\n", len(closest), idsOf(closest))
 	// closest := kademlia.IterativeFindNode(key)
 	//3. Send STORE RPCs to those nodes
 	successCount := 0
