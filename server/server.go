@@ -157,6 +157,10 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.mutExit.Unlock()
 		case "ping":
 			reply(conn, "pong")
+		case "forget":
+			response := "This node will stop to refresh value assigned as " + splitRequest[1]
+			s.node.Forget(splitRequest[1])
+			reply(conn, response)
 		case "get":
 			// TODO: SEND BACK CONTACT
 			var response *string

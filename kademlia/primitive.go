@@ -192,3 +192,11 @@ func (kademlia *Kademlia) Refresh(contact *Contact, key string) bool {
 	}
 	return false
 }
+
+// FORGET VALUE/STOP REFRESHING
+func (kademlia *Kademlia) Forget(key string) {
+	if kademlia.keyStore[key] != nil {
+		kademlia.keyStore[key] <- "Forget"
+		delete(kademlia.keyStore, key)
+	}
+}

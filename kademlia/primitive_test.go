@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -138,4 +139,22 @@ func TestStoreTimeout(t *testing.T) {
 
 	ok := nodeA.Store(&badContact, "val", "key")
 	assert.False(t, ok, "Store should fail on nonexistent node")
+}
+
+func TestForgetPrimitive(t *testing.T) {
+	sim := NewSimulatedNetwork()
+	nodeA, _ := setupPrimitiveNodes(sim, "nodeA", "nodeB")
+	nodeA.keyStore = make(map[string]chan string)
+
+	value := "helloWorld"
+	key, _ := nodeA.IterativeStore(value)
+
+	time.Sleep(100 * time.Millisecond)
+
+	assert.True(t, nodeA.keyStore[key] != nil, "Node A should contain the channel to forget")
+
+	nodeA.Forget(key)
+
+	assert.True(t, nodeA.keyStore[key] == nil, "Node A should not contain the channel to forget anymore")
+
 }

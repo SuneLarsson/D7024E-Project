@@ -158,9 +158,19 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 		go func(key *KademliaID) {
 			ticker := time.NewTicker(12 * time.Hour)
 			defer ticker.Stop()
-			for range ticker.C {
-				kademlia.IterativeRefresh(key, 3)
+			forgetChan := make(chan string)
+			kademlia.keyStore[key.String()] = forgetChan
+			defer delete(kademlia.keyStore, key.String())
+			keepGoing := true
+			for keepGoing {
+				select {
+				case <-ticker.C:
+					kademlia.IterativeRefresh(key, 3)
+				case <-forgetChan:
+					keepGoing = false
+				}
 			}
+			fmt.Println("No more refreshing the value that has key", key.String())
 		}(key)
 	} else {
 		log.Println("Failed to store value on any node")
