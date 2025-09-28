@@ -54,10 +54,10 @@ func (s *Server) Listen() {
 	s.node = node
 	log.Printf("Node created with ID: %s on address %s", s.node.Self.ID, s.node.Self.Address)
 	//Start REST server
-	go s.node.StartRESTServer(":8080")
 
 	if s.bootstrapAddress != "" {
 		log.Printf("Attempting to join network via bootstrap node at %s", s.bootstrapAddress)
+		go s.node.StartRESTServer(":8080")
 
 		dummyContact := kademlia.NewContact(kademlia.NewRandomKademliaID(), s.bootstrapAddress)
 
@@ -96,6 +96,7 @@ func (s *Server) Listen() {
 		// Now, join the network using the real, complete contact info.
 		s.node.JoinNetwork(&bootstrapContact)
 	} else {
+		go s.node.StartRESTServer(":8081")
 		log.Println("No bootstrap address provided. Starting as a bootstrap node.")
 	}
 
@@ -163,14 +164,27 @@ func (s *Server) handleConnection(conn net.Conn) {
 			reply(conn, response)
 		case "get":
 			// TODO: SEND BACK CONTACT
+			if !s.node.IsValidKademliaID(splitRequest[1]) {
+				reply(conn, "Invalid key")
+				continue
+			}
 			var response *string
 			_, response = s.node.LookupValue(splitRequest[1])
-			reply(conn, *response)
+			if response != nil {
+				reply(conn, *response)
+			} else {
+				reply(conn, "Value not found")
+			}
 		case "put":
 			// TODO: CHANGE IF VALUE NOT STORED WELL
 			var key string
-			key, _ = s.node.IterativeStore(splitRequest[1])
-			reply(conn, key)
+			var result bool
+			key, result = s.node.IterativeStore(splitRequest[1])
+			if result {
+				reply(conn, key)
+			} else {
+				reply(conn, "Value not stored")
+			}
 		}
 	}
 

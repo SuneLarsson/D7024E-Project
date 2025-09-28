@@ -1,24 +1,13 @@
 version: "3.7"
 services:
-  kademlia:
-    image: kadlab:latest
-    ports:
-      - "8080:8080" # Expose REST API port
-      - "8000:8000/udp" # Expose Kademlia UDP port
-    environment:
-      - BOOTSTRAP_ADDRESS=bootstrap-node:8000
-      - ALPHA=${ALPHA}
-      - BETA=${BETA}
-      - K=${K}
-      - TTL=${TTL}
-    networks:
-      - kademlia_network
   bootstrap-node:
     image: kadlab:latest
     stdin_open: true
     tty: true
     networks:
       - kademlia_network
+    ports:
+      - "8081:8081" 
     environment:
       - ALPHA=${ALPHA}
       - BETA=${BETA}
@@ -39,6 +28,8 @@ services:
         window: 10s
     networks:
       - kademlia_network
+    ports:
+      - "8080:8080"
     environment:
       - BOOTSTRAP_ADDRESS=bootstrap-node:8000
       - ALPHA=${ALPHA}
