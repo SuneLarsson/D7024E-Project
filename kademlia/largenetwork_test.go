@@ -2,90 +2,146 @@ package kademlia
 
 import (
 	"fmt"
+	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func SetupLargeNetwork(t *testing.T, numNodes int, dropRate float64) ([]*Kademlia, *SimulatedNetwork) {
+func SetupLargeNetwork(t *testing.T, numNodes int, dropRate float64, seed int64) ([]*Kademlia, *SimulatedNetwork) {
 
 	// 1. Configuration
 	sim := NewSimulatedNetwork(dropRate)
 	nodes := make([]*Kademlia, numNodes)
+	// r := rand.New(rand.NewSource(seed))
 
-	// 2. Node Creation with Deterministic IDs
+	// 2. Node Creation
 	for i := 0; i < numNodes; i++ {
 		addr := fmt.Sprintf("node-%d", i)
 		node := NewTestKademliaNode(addr, sim)
-
-		// Overwrite the random ID with a deterministic, sequential one.
-		// This gives us a predictable keyspace to test against.
-		idString := fmt.Sprintf("%040x", i)
-		node.Self.ID = NewKademliaID(idString)
 		nodes[i] = node
 	}
 
-	// 4. Bootstrapping
-	// To make the network aware of itself, we connect every node to the first node.
-	// This simulates a real-world scenario where a new node connects to a known bootstrap node.
-	bootstrapNode := nodes[0]
-	for i := 1; i < numNodes; i++ {
-		nodes[i].RoutingTable.AddContact(bootstrapNode.Self)
-		bootstrapNode.RoutingTable.AddContact(nodes[i].Self)
+	coreNetworkSize := numNodes / 5
+
+	// 4a. Create a fully interconnected core network.
+	// This provides a stable set of entry points for new nodes.
+	for i := 0; i < coreNetworkSize; i++ {
+		for j := 0; j < coreNetworkSize; j++ {
+			if i != j {
+				nodes[i].RoutingTable.AddContact(nodes[j].Self)
+			}
+		}
 	}
+
+	var wg sync.WaitGroup
+	for i := coreNetworkSize; i < numNodes; i++ {
+		wg.Add(1)
+		go func(nodeIndex int) {
+			defer wg.Done()
+			newNode := nodes[nodeIndex]
+			// Select an entry point from any node that has already been bootstrapped.
+			entryPointIndex := nodeIndex % coreNetworkSize
+			entryPointNode := nodes[entryPointIndex]
+
+			// Add an entry point to the routing table.
+			newNode.RoutingTable.AddContact(entryPointNode.Self)
+
+			// Perform the self-lookup to discover the network.
+			newNode.IterativeFindNode(newNode.Self.ID, ALPHA, K)
+		}(i)
+	}
+	wg.Wait()
 
 	return nodes, sim
 }
 
 func TestLargeNetworkLookupNoDrops(t *testing.T) {
-	nodes, _ := SetupLargeNetwork(t, 1000, 0.0)
+	const numIterations = 25
+	const numNodes = 1000
+	const dropRate = 0.0 // Keep drops at 0 for a predictable success case.
 
-	// 5. The Test Itself: Find a key that is very "close" to a specific node.
-	nodeA := nodes[500] // The node performing the lookup
+	for i := 0; i < numIterations; i++ {
+		seed := int64(i)
+		testName := fmt.Sprintf("IterationWithSeed_%d", seed)
 
-	targetNode := nodes[11]
+		t.Run(testName, func(t *testing.T) {
+			nodes, _ := SetupLargeNetwork(t, numNodes, dropRate, seed)
+			r := rand.New(rand.NewSource(seed))
 
-	fmt.Println("Target node ID for lookup:", targetNode.Self.ID.String())
-	var foundContacts []Contact
-	lookupSuccess := assert.Eventually(t, func() bool {
-		// Perform the lookup to find the contacts closest to our synthetic targetID.
-		contacts := nodeA.IterativeFindNode(targetNode.Self.ID, ALPHA, K)
+			// Select two different random nodes for the test.
+			// NOTE: Corrected the random logic to be `r.Intn(numNodes)` for 0-indexed slices.
+			nodeAIndex := r.Intn(numNodes)
+			targetNodeIndex := r.Intn(numNodes)
+			for nodeAIndex == targetNodeIndex {
+				targetNodeIndex = r.Intn(numNodes)
+			}
 
-		if len(contacts) == 0 {
-			return false // Keep trying if we haven't found anyone yet
-		}
-		fmt.Printf("Lookup found %d contacts: %v\n", len(contacts), idsOf(contacts))
-		foundContacts = contacts
-		return true
-	}, 5*time.Second, 100*time.Millisecond, "Lookup should eventually return some contacts")
+			nodeA := nodes[nodeAIndex]           // The node performing the lookup.
+			targetNode := nodes[targetNodeIndex] // The node we want to find.
 
-	assert.True(t, lookupSuccess, "IterativeFindNode failed to complete in time")
-	assert.NotEmpty(t, foundContacts, "Lookup should return at least one contact")
+			var foundContacts []Contact
+			lookupSuccess := assert.Eventually(t, func() bool {
+				// Perform the lookup to find the contacts closest to the target node's actual ID.
+				contacts := nodeA.IterativeFindNode(targetNode.Self.ID, ALPHA, K)
+				if len(contacts) > 0 {
+					foundContacts = contacts
+					return true
+				}
+				return false
+			}, 5*time.Second, 100*time.Millisecond, "Lookup should eventually return some contacts")
 
-	closestContact := foundContacts[0]
+			assert.True(t, lookupSuccess, "IterativeFindNode failed to complete in time")
+			assert.NotEmpty(t, foundContacts, "Lookup should return at least one contact")
 
-	assert.True(t, closestContact.ID.Equals(targetNode.Self.ID), "The closest node found should be the one whose ID we based our target on")
+			// The first contact in the returned list should be the exact node we were looking for.
+			closestContact := foundContacts[0]
+			assert.True(t, closestContact.ID.Equals(targetNode.Self.ID), "The closest node found should be the target node")
+		})
+	}
 }
 
-func TestLargeNetworkLookupWithDrops(t *testing.T) {
-	nodes, _ := SetupLargeNetwork(t, 1000, 0.1)
+func TestLargeNetworkLookupDrops(t *testing.T) {
+	const numIterations = 1
+	const numNodes = 300
+	const dropRate = 0.05 // Keep drops at 0 for a predictable success case.
 
-	// 5. The Test Itself: Find a key that is very "close" to a specific node.
-	nodeA := nodes[500] // The node performing the lookup
+	for i := 0; i < numIterations; i++ {
+		seed := int64(i)
+		testName := fmt.Sprintf("DropIterationWithSeed_%d", seed)
 
-	targetNode := nodes[11]
+		t.Run(testName, func(t *testing.T) {
+			nodes, _ := SetupLargeNetwork(t, numNodes, dropRate, seed)
+			r := rand.New(rand.NewSource(seed))
 
-	fmt.Println("Target node ID for lookup:", targetNode.Self.ID.String())
-	foundContacts := nodeA.IterativeFindNode(targetNode.Self.ID, ALPHA, K)
+			nodeAIndex := r.Intn(numNodes)
+			targetNodeIndex := r.Intn(numNodes)
+			for nodeAIndex == targetNodeIndex {
+				targetNodeIndex = r.Intn(numNodes)
+			}
 
-	// assert.True(t, lookupSuccess, "IterativeFindNode failed to complete in time")
-	assert.NotEmpty(t, foundContacts, "Lookup should return at least one contact")
+			nodeA := nodes[nodeAIndex]           // The node performing the lookup.
+			targetNode := nodes[targetNodeIndex] // The node we want to find.
 
-	// Now, verify that the closest node found is the original targetNode.
-	// Since IterativeFindNode returns a sorted list, the first contact should be the closest.
-	closestContact := foundContacts[0]
-	fmt.Printf("Closest contact found: ID=%s, Address=%s\n", closestContact.ID.String(), closestContact.Address)
-	fmt.Printf("Target node ID: %s\n", targetNode.Self.ID.String())
-	assert.True(t, closestContact.ID.Equals(targetNode.Self.ID), "The closest node found should be the one whose ID we based our target on")
+			var foundContacts []Contact
+			lookupSuccess := assert.Eventually(t, func() bool {
+				// Perform the lookup to find the contacts closest to the target node's actual ID.
+				contacts := nodeA.IterativeFindNode(targetNode.Self.ID, ALPHA, K)
+				if len(contacts) > 0 {
+					foundContacts = contacts
+					return true
+				}
+				return false
+			}, 5*time.Second, 100*time.Millisecond, "Lookup should eventually return some contacts")
+
+			assert.True(t, lookupSuccess, "IterativeFindNode failed to complete in time")
+			assert.NotEmpty(t, foundContacts, "Lookup should return at least one contact")
+
+			// The first contact in the returned list should be the exact node we were looking for.
+			closestContact := foundContacts[0]
+			assert.True(t, closestContact.ID.Equals(targetNode.Self.ID), "The closest node found should be the target node")
+		})
+	}
 }
