@@ -10,17 +10,20 @@ import (
 
 func (kademlia *Kademlia) LookupNode(target string) []Contact {
 	targetId := NewKademliaID(target)
-	return kademlia.IterativeFindNode(targetId, 3, 20)
+	return kademlia.IterativeFindNode(targetId, ALPHA, K)
 }
 
 func (kademlia *Kademlia) LookupValue(target string) ([]Contact, *string) {
+	if !kademlia.IsValidKademliaID(target) {
+		return nil, nil
+	}
 	targetId := NewKademliaID(target)
 	// TODO if the value exists in the local datastore should we return it directly?
 	// dataItem, exists := kademlia.DataStore.Get(targetId.String())
 	// if exists {
 	// 	return nil, &dataItem
 	// }
-	return kademlia.IterativeFindValue(targetId, 3, 20)
+	return kademlia.IterativeFindValue(targetId, ALPHA, K)
 }
 
 func idsOf(contacts []Contact) []string {
@@ -30,6 +33,7 @@ func idsOf(contacts []Contact) []string {
 	}
 	return ids
 }
+
 func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSize int) ([]Contact, *string) {
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
@@ -128,10 +132,10 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	dataToHash := []byte(value)
 	hash := sha1.Sum(dataToHash)
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
-	log.Printf("Storing value with key %s\n", key)
-	log.Printf("Current routing table: %v\n", *kademlia.RoutingTable)
+	// log.Printf("Storing value with key %s\n", key)
+	// log.Printf("Current routing table: %v\n", *kademlia.RoutingTable)
 	//2. Find the k closest nodes to the key
-	closest := kademlia.IterativeFindNode(key, 3, 20)
+	closest := kademlia.IterativeFindNode(key, ALPHA, K)
 	log.Printf("Found %d closest nodes to store the value: %v\n", len(closest), idsOf(closest))
 	// closest := kademlia.IterativeFindNode(key)
 	//3. Send STORE RPCs to those nodes
@@ -139,9 +143,9 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	chStore := make(chan bool, len(closest))
 
 	for _, contact := range closest {
-		go func() {
-			chStore <- kademlia.Store(&contact, value, key.String())
-		}()
+		go func(c Contact) {
+			chStore <- kademlia.Store(&c, value, key.String())
+		}(contact)
 	}
 
 	for range closest {
@@ -192,7 +196,6 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
 	candidates.Append(shortlist)
-	// closestSoFar := &Contact{}
 	var closestSoFar *Contact = nil
 	queried := make(map[string]bool)
 

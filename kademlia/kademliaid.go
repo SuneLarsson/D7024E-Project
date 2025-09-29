@@ -92,3 +92,10 @@ func (kademlia *Kademlia) NewDataItem(value string) (*DataItem, error) {
 	}
 	return item, nil
 }
+
+// IsValidKademliaID checks if the given string is a valid Kademlia ID.
+// A valid Kademlia ID must be a 40-character hexadecimal string.
+func (kademlia *Kademlia) IsValidKademliaID(s string) bool {
+	_, err := hex.DecodeString(s)
+	return err == nil
+}
