@@ -159,8 +159,9 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 			ticker := time.NewTicker(12 * time.Hour)
 			defer ticker.Stop()
 			forgetChan := make(chan string)
+			kademlia.keyMutex.Lock()
 			kademlia.keyStore[key.String()] = forgetChan
-			defer delete(kademlia.keyStore, key.String())
+			kademlia.keyMutex.Unlock()
 			keepGoing := true
 			for keepGoing {
 				select {

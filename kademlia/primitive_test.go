@@ -151,10 +151,14 @@ func TestForgetPrimitive(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
+	nodeA.keyMutex.Lock()
 	assert.True(t, nodeA.keyStore[key] != nil, "Node A should contain the channel to forget")
+	nodeA.keyMutex.Unlock()
 
 	nodeA.Forget(key)
 
+	nodeA.keyMutex.Lock()
 	assert.True(t, nodeA.keyStore[key] == nil, "Node A should not contain the channel to forget anymore")
+	nodeA.keyMutex.Unlock()
 
 }

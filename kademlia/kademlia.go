@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -20,6 +21,7 @@ type Kademlia struct {
 	mapManagerCh chan MapRequest
 	DataStore    storage.Storage
 	keyStore     map[string]chan string
+	keyMutex     sync.Mutex
 	alpha        int
 	beta         int
 	k            int

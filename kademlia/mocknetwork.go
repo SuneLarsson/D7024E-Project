@@ -66,6 +66,7 @@ func NewTestKademliaNode(address string, sim *SimulatedNetwork) *Kademlia {
 		RoutingTable: rt,
 		DataStore:    *storage.NewStorage(),
 		mapManagerCh: make(chan MapRequest),
+		keyStore:     make(map[string]chan string),
 	}
 
 	// 2. Create the mock network adapter for this specific node.

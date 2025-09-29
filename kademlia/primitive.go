@@ -195,6 +195,8 @@ func (kademlia *Kademlia) Refresh(contact *Contact, key string) bool {
 
 // FORGET VALUE/STOP REFRESHING
 func (kademlia *Kademlia) Forget(key string) {
+	kademlia.keyMutex.Lock()
+	defer kademlia.keyMutex.Unlock()
 	if kademlia.keyStore[key] != nil {
 		kademlia.keyStore[key] <- "Forget"
 		delete(kademlia.keyStore, key)

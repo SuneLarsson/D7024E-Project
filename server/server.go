@@ -67,7 +67,7 @@ func (s *Server) Listen() {
 		maxRetries := 5
 		retryDelay := 2 * time.Second
 
-		for i := 0; i < maxRetries; i++ {
+		for i := range maxRetries {
 			err = s.node.SendPing(&dummyContact)
 			if err == nil {
 				log.Printf("Successfully pinged bootstrap node. ")
@@ -103,6 +103,7 @@ func (s *Server) Listen() {
 	errCh := make(chan error)
 
 	for {
+		// 1. Check the exit condition
 		s.mutExit.RLock()
 		if s.exitNode {
 			s.mutExit.RUnlock()
@@ -111,6 +112,7 @@ func (s *Server) Listen() {
 			s.mutExit.RUnlock()
 		}
 
+		// 2. Listen on the unix socket
 		go func() {
 			conn, err := ln.Accept()
 			if err != nil {
@@ -120,13 +122,14 @@ func (s *Server) Listen() {
 			connCh <- conn
 		}()
 
+		// 3. Wait 1 second for an interaction on one of the channels before going back to the loop
 		select {
 		case conn := <-connCh:
 			go s.handleConnection(conn)
 		case err := <-errCh:
 			//TODO
 			fmt.Println("Error on connection:", err)
-		case <-time.After(3 * time.Second):
+		case <-time.After(1 * time.Second):
 
 		}
 
