@@ -191,6 +191,22 @@ func TestIterativeStore(t *testing.T) {
 		assert.Equal(t, value, stored)
 	})
 
+	// t.Run("Stores on one neighbor", func(t *testing.T) {
+	// 	sim := NewSimulatedNetwork()
+	// 	nodeA, nodeB := setupTwoNodes(sim, "nodeA", "nodeB")
+
+	// 	value := "storeMe"
+	// 	key, success := nodeA.IterativeStore(value)
+
+	// 	assert.True(t, success, "Store should succeed")
+
+	// 	// Use assert.Eventually to poll for the value
+	// 	assert.Eventually(t, func() bool {
+	// 		stored, found := nodeB.DataStore.Get(key)
+	// 		return found && stored == value
+	// 	}, 100*time.Millisecond, 10*time.Millisecond, "Value should be stored on nodeB")
+	// })
+
 	t.Run("No nodes available", func(t *testing.T) {
 		sim := NewSimulatedNetwork()
 		nodeA := NewTestKademliaNode("nodeA", sim)
