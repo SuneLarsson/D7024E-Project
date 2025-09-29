@@ -165,6 +165,10 @@ func (s *Server) handleConnection(conn net.Conn) {
 			var key string
 			key, _ = s.node.IterativeStore(splitRequest[1])
 			reply(conn, key)
+		case "routing":
+			// TODO : SEND THE ROUTING TABLE BACK TO THE COMMAND
+
+			reply(conn, "END")
 		}
 	}
 
