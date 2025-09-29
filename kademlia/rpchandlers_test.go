@@ -20,7 +20,7 @@ func setupHandlerNodes(sim *SimulatedNetwork) (*Kademlia, *Kademlia) {
 }
 
 func TestHandlePingAndPong(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0)
 	nodeA, nodeB := setupHandlerNodes(sim)
 
 	err := nodeA.SendPing(&nodeB.Self)
@@ -37,7 +37,7 @@ func TestHandlePingAndPong(t *testing.T) {
 }
 
 func TestHandleStoreSuccess(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0)
 	nodeA, nodeB := setupHandlerNodes(sim)
 
 	value := "storeMe"
@@ -52,7 +52,7 @@ func TestHandleStoreSuccess(t *testing.T) {
 }
 
 func TestHandleStoreInvalidPayload(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0)
 	_, nodeB := setupHandlerNodes(sim)
 
 	badPayload, _ := json.Marshal(12345)
@@ -70,7 +70,7 @@ func TestHandleStoreInvalidPayload(t *testing.T) {
 }
 
 func TestHandleFindValueFound(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0)
 	nodeA, nodeB := setupHandlerNodes(sim)
 
 	value := "value123"
@@ -83,7 +83,7 @@ func TestHandleFindValueFound(t *testing.T) {
 }
 
 func TestHandleFindValueNotFoundReturnsContacts(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0)
 	nodeA, nodeB := setupHandlerNodes(sim)
 
 	target := NewRandomKademliaID()
@@ -95,7 +95,7 @@ func TestHandleFindValueNotFoundReturnsContacts(t *testing.T) {
 }
 
 func TestHandleFindValueInvalidPayload(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0)
 	_, nodeB := setupHandlerNodes(sim)
 
 	badPayload, _ := json.Marshal(12345)
@@ -113,7 +113,7 @@ func TestHandleFindValueInvalidPayload(t *testing.T) {
 }
 
 func TestHandleFindNodeReturnsContacts(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0)
 	nodeA, nodeB := setupHandlerNodes(sim)
 
 	target := nodeB.Self.ID
@@ -124,7 +124,7 @@ func TestHandleFindNodeReturnsContacts(t *testing.T) {
 }
 
 func TestHandleResponseDispatches(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0)
 	node := NewTestKademliaNode("nodeX", sim)
 
 	rpcID := *NewRandomKademliaID()
@@ -151,7 +151,7 @@ func TestHandleResponseDispatches(t *testing.T) {
 }
 
 func TestHandleMessageUnknownType(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0)
 	_, node := setupHandlerNodes(sim)
 
 	msg := Message{

@@ -67,7 +67,7 @@ func (s *Server) Listen() {
 		maxRetries := 5
 		retryDelay := 2 * time.Second
 
-		for i := range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			err = s.node.SendPing(&dummyContact)
 			if err == nil {
 				log.Printf("Successfully pinged bootstrap node. ")
