@@ -118,7 +118,7 @@ func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 	kademlia.RoutingTable.AddContact(*knownContact)
 
 	//3. Run an Iterative Find Node on Self
-	kademlia.IterativeFindNode(kademlia.Self.ID, ALPHA, kademlia.k, false)
+	kademlia.IterativeFindNode(kademlia.Self.ID, ALPHA, kademlia.k)
 
 	//4. Refresh bucket further away than closest
 	// neighbor
@@ -132,7 +132,7 @@ func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 func (kademlia *Kademlia) RefreshBucket(idx int) {
 	contact := kademlia.RoutingTable.buckets[idx].getContactForBucketRefresh()
 	if contact.ID != nil {
-		kademlia.IterativeFindNode(contact.ID, ALPHA, kademlia.k, false)
+		kademlia.IterativeFindNode(contact.ID, ALPHA, kademlia.k)
 	}
 }
 

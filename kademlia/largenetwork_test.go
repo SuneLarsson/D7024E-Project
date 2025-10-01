@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -51,7 +50,7 @@ func SetupLargeNetwork(t *testing.T, numNodes int, dropRate float64, seed int64)
 			newNode.RoutingTable.AddContact(entryPointNode.Self)
 
 			// Perform the self-lookup to discover the network.
-			newNode.IterativeFindNode(newNode.Self.ID, ALPHA, K, false)
+			newNode.IterativeFindNode(newNode.Self.ID, ALPHA, K)
 		}(i)
 	}
 	wg.Wait()
@@ -85,22 +84,10 @@ func TestLargeNetworkLookupNoDrops(t *testing.T) {
 			nodeA := nodes[nodeAIndex]           // The node performing the lookup.
 			targetNode := nodes[targetNodeIndex] // The node we want to find.
 
-			var foundContacts []Contact
-			lookupSuccess := assert.Eventually(t, func() bool {
-				// Perform the lookup to find the contacts closest to the target node's actual ID.
-				contacts := nodeA.IterativeFindNode(targetNode.Self.ID, ALPHA, K, true)
-				if len(contacts) > 0 {
-					foundContacts = contacts
-					return true
-				}
-				return false
-			}, 5*time.Second, 100*time.Millisecond, "Lookup should eventually return some contacts")
-
-			assert.True(t, lookupSuccess, "IterativeFindNode failed to complete in time")
-			assert.NotEmpty(t, foundContacts, "Lookup should return at least one contact")
+			contacts := nodeA.IterativeFindNode(targetNode.Self.ID, ALPHA, K)
 
 			// The first contact in the returned list should be the exact node we were looking for.
-			closestContact := foundContacts[0]
+			closestContact := contacts[0]
 			assert.True(t, closestContact.ID.Equals(targetNode.Self.ID), "The closest node found should be the target node")
 		})
 	}
@@ -128,27 +115,8 @@ func TestLargeNetworkLookupDrops(t *testing.T) {
 			nodeA := nodes[nodeAIndex]           // The node performing the lookup.
 			targetNode := nodes[targetNodeIndex] // The node we want to find.
 
-			// closestContacts := nodeA.RoutingTable.FindClosestContacts(targetNode.Self.ID, ALPHA)
-			// fmt.Printf("Closest contacts: %v\n", closestContacts)
+			contacts := nodeA.IterativeFindNode(targetNode.Self.ID, ALPHA, K)
 
-			// var foundContacts []Contact
-			contacts := nodeA.IterativeFindNode(targetNode.Self.ID, ALPHA, K, true)
-			// if len(contacts) > 0 {
-			// 	foundContacts = contacts
-			// }
-			// lookupSuccess := assert.Eventually(t, func() bool {
-			// 	// Perform the lookup to find the contacts closest to the target node's actual ID.
-			// 	contacts := nodeA.IterativeFindNode(targetNode.Self.ID, ALPHA, K, true)
-			// 	if len(contacts) > 0 {
-			// 		foundContacts = contacts
-			// 		return true
-			// 	}
-			// 	return false
-			// }, 20*time.Second, 100*time.Millisecond, "Lookup should eventually return some contacts")
-
-			// fmt.Printf("Found contacts: %v\n", foundContacts)
-
-			// assert.True(t, lookupSuccess, "IterativeFindNode failed to complete in time")
 			assert.NotEmpty(t, contacts, "Lookup should return at least one contact")
 
 			// The first contact in the returned list should be the exact node we were looking for.

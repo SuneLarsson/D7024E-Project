@@ -43,7 +43,7 @@ func TestIterativeFindNode(t *testing.T) {
 		nodeA.RoutingTable.AddContact(nodeC.Self)
 
 		target := NewRandomKademliaID()
-		result := nodeA.IterativeFindNode(target, 3, 20, false)
+		result := nodeA.IterativeFindNode(target, 3, 20)
 		fmt.Printf("Result: %v\n", result)
 
 		ids := getIDs(result)
@@ -56,7 +56,7 @@ func TestIterativeFindNode(t *testing.T) {
 		node := NewTestKademliaNode("nodeX", sim)
 
 		target := NewRandomKademliaID()
-		result := node.IterativeFindNode(target, 3, 20, false)
+		result := node.IterativeFindNode(target, 3, 20)
 
 		assert.Empty(t, result, "Empty routing table should yield no contacts")
 	})
@@ -81,36 +81,49 @@ func TestIterativeFindNode(t *testing.T) {
 		nodeB.RoutingTable.AddContact(nodeC.Self)
 		nodeC.RoutingTable.AddContact(nodeD.Self)
 
-		result := nodeA.IterativeFindNode(nodeD.Self.ID, 3, 20, true)
+		result := nodeA.IterativeFindNode(nodeD.Self.ID, 3, 20)
 		ids := getIDs(result)
 
 		assert.Contains(t, ids, nodeD.Self.ID.String(), "A should discover D via iterative lookup")
 	})
 
-	t.Run("Multi-hop discovery A closest D", func(t *testing.T) {
+	t.Run("Multi-hop discovery A closest H", func(t *testing.T) {
 		sim := NewSimulatedNetwork(0, 0)
 
 		nodeA := NewTestKademliaNode("nodeA", sim)
 		nodeB := NewTestKademliaNode("nodeB", sim)
 		nodeC := NewTestKademliaNode("nodeC", sim)
 		nodeD := NewTestKademliaNode("nodeD", sim)
+		nodeE := NewTestKademliaNode("nodeE", sim)
+		nodeF := NewTestKademliaNode("nodeF", sim)
+		nodeG := NewTestKademliaNode("nodeG", sim)
+		nodeH := NewTestKademliaNode("nodeH", sim)
 
-		// A → B → C → D-d
-		nodeA.Self.ID = NewKademliaID("00000000000000000000000000000000000000A0")
+		// A → B → C → D → e → f → g -> h
+		// but key of A closest to H other wise further and further away from h
+		nodeA.Self.ID = NewKademliaID("0000000000000000000000000000000000000001")
 		nodeB.Self.ID = NewKademliaID("00000000000000000000000010000000000000B0")
-		nodeC.Self.ID = NewKademliaID("00000000000000000000000020000000000000C0")
-		nodeD.Self.ID = NewKademliaID("00000000000000000000000000000000000000A1")
+		nodeC.Self.ID = NewKademliaID("0000000000000000000000002000000000000000")
+		nodeD.Self.ID = NewKademliaID("00000000000000000000000030000000000000B0")
+		nodeE.Self.ID = NewKademliaID("0000000000000000000000004000000000000000")
+		nodeF.Self.ID = NewKademliaID("00000000000000000000000050000000000000B0")
+		nodeG.Self.ID = NewKademliaID("0000000000000000000000006000000000000000")
+		nodeH.Self.ID = NewKademliaID("0000000000000000000000000000000000000002")
 
-		fmt.Printf("A: %s\nB: %s\nC: %s\nD: %s\n",
-			nodeA.Self.ID, nodeB.Self.ID, nodeC.Self.ID, nodeD.Self.ID)
+		// fmt.Printf("A: %s\nB: %s\nC: %s\nD: %s\n",
+		// 	nodeA.Self.ID, nodeB.Self.ID, nodeC.Self.ID, nodeD.Self.ID)
 		nodeA.RoutingTable.AddContact(nodeB.Self)
 		nodeB.RoutingTable.AddContact(nodeC.Self)
 		nodeC.RoutingTable.AddContact(nodeD.Self)
+		nodeD.RoutingTable.AddContact(nodeE.Self)
+		nodeE.RoutingTable.AddContact(nodeF.Self)
+		nodeF.RoutingTable.AddContact(nodeG.Self)
+		nodeG.RoutingTable.AddContact(nodeH.Self)
 
-		result := nodeA.IterativeFindNode(nodeD.Self.ID, 3, 20, true)
+		result := nodeA.IterativeFindNode(nodeH.Self.ID, 3, 20)
 		ids := getIDs(result)
 
-		assert.Contains(t, ids, nodeD.Self.ID.String(), "A should not discover D via iterative lookup")
+		assert.NotContains(t, ids, nodeH.Self.ID.String(), "A should not discover D via iterative lookup")
 	})
 
 	t.Run("Results sorted by distance", func(t *testing.T) {
@@ -121,7 +134,7 @@ func TestIterativeFindNode(t *testing.T) {
 		nodeC := NewTestKademliaNode("nodeC", sim)
 		nodeA.RoutingTable.AddContact(nodeC.Self)
 
-		result := nodeA.IterativeFindNode(target, 3, 20, false)
+		result := nodeA.IterativeFindNode(target, 3, 20)
 
 		if len(result) > 1 {
 			assert.True(t, result[0].distance.Less(result[1].distance),

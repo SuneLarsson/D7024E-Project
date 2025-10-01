@@ -10,7 +10,7 @@ import (
 
 func (kademlia *Kademlia) LookupNode(target string) []Contact {
 	targetId := NewKademliaID(target)
-	return kademlia.IterativeFindNode(targetId, ALPHA, K, false)
+	return kademlia.IterativeFindNode(targetId, ALPHA, K)
 }
 
 func (kademlia *Kademlia) LookupValue(target string) ([]Contact, *string) {
@@ -135,7 +135,7 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	// log.Printf("Storing value with key %s\n", key)
 	// log.Printf("Current routing table: %v\n", *kademlia.RoutingTable)
 	//2. Find the k closest nodes to the key
-	closest := kademlia.IterativeFindNode(key, ALPHA, K, false)
+	closest := kademlia.IterativeFindNode(key, ALPHA, K)
 	log.Printf("Found %d closest nodes to store the value: %v\n", len(closest), idsOf(closest))
 	// closest := kademlia.IterativeFindNode(key)
 	//3. Send STORE RPCs to those nodes
@@ -197,7 +197,7 @@ type findNodeResponse struct {
 	contacts []Contact
 }
 
-func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize int, log bool) []Contact {
+func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize int) []Contact {
 	probed := make(map[string]bool)
 
 	candidates := &ContactCandidates{}
@@ -206,15 +206,6 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 	candidates.Sort()
 
 	var closestSoFar *Contact
-	// kademlia.Self.CalcDistance(target)
-	// closestSoFar = &kademlia.Self
-
-	// if candidates.Len() > 0 {
-	// 	bestFromShortlist := &candidates.contacts[0]
-	// 	if bestFromShortlist.Less(closestSoFar) {
-	// 		closestSoFar = bestFromShortlist
-	// 	}
-	// }
 
 	if candidates.Len() > 0 {
 		closestSoFar = &candidates.contacts[0]
@@ -237,9 +228,6 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 			if len(nodesToQuery) == 0 {
 				break
 			}
-		}
-		if log {
-			fmt.Printf("[IterativeFindNode] Querying %d nodes: %v\n", len(nodesToQuery), idsOf(nodesToQuery))
 		}
 
 		// nbAwaitedAnswer := len(nodesToQuery)
@@ -283,6 +271,7 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 			// If the search was stalled AND this round found no one better, we are done.
 			break
 		}
+		closestSoFar = newClosestNode
 
 		probedCount := 0
 		for i := 0; i < candidates.Len() && i < kSize; i++ {
@@ -293,21 +282,6 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 		if probedCount >= kSize {
 			// We have confirmed the K best nodes are active.
 			break
-		}
-		// if candidates.Len() > 0 {
-		// 	closestDistance := candidates.contacts[0]
-		// 	if closestSoFar == nil || closestDistance.Less(closestSoFar) {
-		// 		closestSoFar = &closestDistance
-		// 	} else if !progress {
-		// 		break
-		// 	}
-		// }
-
-		// if !progress {
-		// 	break
-		// }
-		if log {
-			fmt.Printf("Canditates, %v\n", candidates.contacts)
 		}
 
 	}
