@@ -19,8 +19,10 @@ var routingCmd = &cobra.Command{
 		conn := server.ConnectToServer(server.DEFAULT_SOCKET)
 		defer conn.Close()
 		server.SendMessage(conn, "routing")
+		rr := server.NewResponseReader(conn)
 		for {
-			response := server.ListenToResponse(conn)
+			response := rr.ListenToResponse()
+			fmt.Printf("DEBUG got [%s]\n", response)
 			if response == "END" {
 				break
 			}

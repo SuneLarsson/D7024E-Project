@@ -19,4 +19,5 @@ COPY --from=builder /main .
 
 COPY --from=builder /kademlia /bin/
 
-CMD ["sh","-c","./main > ./log.txt 2>&1"]
+# CMD ["sh","-c","./main > ./log.txt 2>&1"]
+CMD ["./main"]

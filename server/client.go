@@ -3,10 +3,23 @@ package server
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"log"
 	"net"
+	"strings"
 )
 
 const ERR_ABSENTSERVER string = "Socket does not exist at indicated socket path"
+
+type ResponseReader struct {
+	Reader *bufio.Reader
+}
+
+func NewResponseReader(conn net.Conn) *ResponseReader {
+	return &ResponseReader{
+		Reader: bufio.NewReader(conn),
+	}
+}
 
 func ConnectToServer(socketPath string) net.Conn {
 
@@ -31,13 +44,20 @@ func SendMessageWithArgument(conn net.Conn, messageType string, argument string)
 
 }
 
-func ListenToResponse(conn net.Conn) string {
+func (rr *ResponseReader) ListenToResponse() string {
 
-	var reply string
-	reader := bufio.NewReader(conn)
+	// var reply string
 
-	reply, _ = reader.ReadString('\n')
-
-	return reply
+	reply, err := rr.Reader.ReadString('\n')
+	if err != nil {
+		if err == io.EOF {
+			log.Print("Connection closed by server")
+			return "END"
+		}
+		return "END" // fail safe
+	}
+	fmt.Println("DEBUG: Raw reply from server:", reply)
+	// return reply //without trailing newline
+	return strings.TrimSpace(reply)
 
 }

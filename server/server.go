@@ -167,6 +167,24 @@ func (s *Server) handleConnection(conn net.Conn) {
 			reply(conn, key)
 		case "routing":
 			// TODO : SEND THE ROUTING TABLE BACK TO THE COMMAND
+			response := s.node.RoutingTable.String()
+			fmt.Printf("DEBUG: Full routing table response: [%s]\n", response)
+
+			lines := strings.Split(response, "\n")
+			fmt.Printf("DEBUG: Split into %d lines\n", len(lines))
+
+			for i, line := range lines {
+				fmt.Printf("DEBUG: Line %d: [%s] (empty: %t)\n", i, line, line == "")
+				if line != "" {
+					reply(conn, line)
+				}
+			}
+
+			fmt.Println("DEBUG: Sending END message")
+			reply(conn, "END")
+			fmt.Println("DEBUG: END message sent")
+		case "store":
+			fmt.Println(s.node.RoutingTable.String())
 
 			reply(conn, "END")
 		}

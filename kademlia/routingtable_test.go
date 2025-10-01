@@ -1,6 +1,7 @@
 package kademlia
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -149,4 +150,33 @@ func getContactIDs(contacts []Contact) []string {
 		ids[i] = c.ID.String()
 	}
 	return ids
+}
+
+func TestRoutingTablePrint(t *testing.T) {
+	self := NewContact(NewRandomKademliaID(), "nodeA")
+	rt := NewRoutingTable(self)
+
+	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
+	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeC"))
+	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeD"))
+
+	fmt.Println(rt.String())
+}
+
+func TestGeneralRoutingTreePrint(t *testing.T) {
+	// Build a fake routing tree for b=2
+	root := &RoutingNode{prefix: ""}
+	root.child = []*RoutingNode{
+		{prefix: "00", bucket: newBucket()},
+		{prefix: "01", bucket: newBucket()},
+		{prefix: "10", bucket: newBucket()},
+		{prefix: "11", bucket: newBucket()},
+	}
+
+	// Add some fake contacts
+	root.child[0].bucket.AddContact(NewContact(NewRandomKademliaID(), "nodeA"))
+	root.child[1].bucket.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
+
+	fmt.Println("Routing Tree (b=2):")
+	fmt.Println(root.PrintTree("", true))
 }
