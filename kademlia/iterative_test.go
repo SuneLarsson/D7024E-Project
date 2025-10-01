@@ -176,14 +176,12 @@ func TestIterativeFindValue(t *testing.T) {
 		value := "forceCacheHere"
 		key := hashKeyForValue(value) // sha1(value)
 
-		//  key cbd2113b7d589122ff85128f173d10e07e822020
-		//   B ends with ...f0  -> XOR = 0x0f
-		//   C ends with ...01  -> XOR = 0xff
-
+		// Ensure that C i closest to key and B is next closest
 		idA := NewKademliaID("0000000000000000000000000000000000000001")
 		idB := NewKademliaID(key.String())
+		idB[19] ^= 0x02
+		idC := NewKademliaID(key.String())
 		idB[19] ^= 0x01
-		idC := NewKademliaID("0000000000000000000000000000000000000000")
 
 		nodeA := NewTestKademliaNode("nodeA", sim)
 		nodeB := NewTestKademliaNode("nodeB", sim)
@@ -194,13 +192,6 @@ func TestIterativeFindValue(t *testing.T) {
 		nodeB.Self.ID = idB
 		nodeC.Self.ID = idC
 
-		//Verify distances
-		distB := idB.CalcDistance(key)
-		distC := idC.CalcDistance(key)
-		require.True(t, distB.Less(distC),
-			"Test setup invalid: B (%s) must be closer to key %s than C (%s)",
-			idB, key, idC)
-
 		// Seed C with the value under the correct key
 		nodeC.DataStore.Put(key.String(), value)
 
@@ -209,15 +200,17 @@ func TestIterativeFindValue(t *testing.T) {
 		nodeB.RoutingTable.AddContact(nodeC.Self)
 
 		// Perform lookup
-		nodeA.IterativeFindValue(key, 1, 20)
+		contacts, foundValue := nodeA.IterativeFindValue(key, 3, 20)
+		fmt.Printf("Contacts: %v\n", contacts)
+		fmt.Printf("Found value: %v\n", foundValue)
 
 		// Verify: B should eventually cache the value, A should not
 		require.Eventually(t, func() bool {
 			storedB, existsB := nodeB.DataStore.Get(key.String())
-			storedA, existsA := nodeA.DataStore.Get(key.String())
+			_, existsA := nodeA.DataStore.Get(key.String())
 
 			// log for debugging
-			t.Logf("A.has=%v, value=%q | B.has=%v, value=%q", existsA, storedA, existsB, storedB)
+			// t.Logf("A.has=%v, value=%q | B.has=%v, value=%q", existsA, storedA, existsB, storedB)
 
 			return !existsA && existsB && storedB == value
 		}, 2*time.Second, 50*time.Millisecond,

@@ -19,10 +19,10 @@ func (kademlia *Kademlia) LookupValue(target string) ([]Contact, *string) {
 	}
 	targetId := NewKademliaID(target)
 	// TODO if the value exists in the local datastore should we return it directly?
-	// dataItem, exists := kademlia.DataStore.Get(targetId.String())
-	// if exists {
-	// 	return nil, &dataItem
-	// }
+	dataItem, exists := kademlia.DataStore.Get(targetId.String())
+	if exists {
+		return nil, &dataItem
+	}
 	return kademlia.IterativeFindValue(targetId, ALPHA, K)
 }
 
@@ -89,30 +89,6 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 			}(c)
 		}
 
-		// for i := 0; i < nbAwaitedAnswer; i++ {
-		// 	roundResponses = append(roundResponses, <-responseChan)
-		// }
-		// progress := false
-		// var roundResponses []findValueResponse
-
-		// for _, resp :=  {
-		// 	if resp.value != nil {
-		// 		valueFound = resp.value
-		// 		} else {
-		// 			// This node did NOT have the value. It's a candidate for caching.
-		// 			resp.from.CalcDistance(target)
-		// 			if nodeWithoutValue == nil || resp.from.Less(nodeWithoutValue) {
-		// 			nodeCopy := *resp.from
-		// 			nodeWithoutValue = &nodeCopy
-		// 		}
-
-		// 		// Merge the new contacts from the response.
-		// 		if candidates.mergeAndSort(resp.contacts, target, kSize) {
-		// 			progress = true
-		// 		}
-		// 	}
-		// }
-
 		roundTimeout := time.After(3 * time.Second)
 		var valueFound *string = nil
 		for i := 0; i < len(nodesToQuery); i++ {
@@ -169,25 +145,6 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 			break
 		}
 
-		// if valueFound != nil {
-		// 	hash := sha1.Sum([]byte(*valueFound))
-		// 	key := hex.EncodeToString(hash[:])
-
-		// 	// Launch the Store call in a separate goroutine and move on.
-		// 	go func(node *Contact, val string, k string) {
-		// 		if node != nil {
-		// 			kademlia.Store(node, val, k)
-		// 		}
-		// 	}(nodeWithoutValue, *valueFound, key)
-
-		// 	// The function returns IMMEDIATELY without waiting for the Store to finish.
-		// 	return nil, valueFound
-		// }
-
-		// // If no progress was made, stall and exit.
-		// if !progress {
-		// 	break
-		// }
 	}
 	if candidates.Len() < kSize {
 		return candidates.GetContacts(candidates.Len()), nil
@@ -200,12 +157,11 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	dataToHash := []byte(value)
 	hash := sha1.Sum(dataToHash)
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
-	// log.Printf("Storing value with key %s\n", key)
-	// log.Printf("Current routing table: %v\n", *kademlia.RoutingTable)
+
 	//2. Find the k closest nodes to the key
 	closest := kademlia.IterativeFindNode(key, ALPHA, K)
 	log.Printf("Found %d closest nodes to store the value: %v\n", len(closest), idsOf(closest))
-	// closest := kademlia.IterativeFindNode(key)
+
 	//3. Send STORE RPCs to those nodes
 	successCount := 0
 	chStore := make(chan bool, len(closest))
@@ -281,8 +237,6 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 
 	queried := make(map[string]bool)
 	queried[kademlia.Self.ID.String()] = true
-	// probed[kademlia.Self.ID.String()] = true
-
 	for {
 		nodesToQuery := candidates.pickAlpha(queried, alpha)
 
@@ -322,9 +276,6 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 					probed[resp.from.ID.String()] = true
 					candidates.mergeAndSort(resp.contacts, target, kSize)
 				}
-				// if candidates.mergeAndSort(newContacts, target, kSize) {
-				// 	progress = true
-				// }
 			case <-roundTimeout:
 				goto endRound
 			}
