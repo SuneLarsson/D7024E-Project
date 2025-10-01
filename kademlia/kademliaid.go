@@ -99,3 +99,8 @@ func (kademlia *Kademlia) IsValidKademliaID(s string) bool {
 	_, err := hex.DecodeString(s)
 	return err == nil
 }
+
+func (id KademliaID) IsZero() bool {
+	var emptyID KademliaID
+	return id == emptyID
+}

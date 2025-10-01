@@ -10,7 +10,7 @@ import (
 
 func (kademlia *Kademlia) LookupNode(target string) []Contact {
 	targetId := NewKademliaID(target)
-	return kademlia.IterativeFindNode(targetId, ALPHA, K)
+	return kademlia.IterativeFindNode(targetId, ALPHA, K, false)
 }
 
 func (kademlia *Kademlia) LookupValue(target string) ([]Contact, *string) {
@@ -135,7 +135,7 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	// log.Printf("Storing value with key %s\n", key)
 	// log.Printf("Current routing table: %v\n", *kademlia.RoutingTable)
 	//2. Find the k closest nodes to the key
-	closest := kademlia.IterativeFindNode(key, ALPHA, K)
+	closest := kademlia.IterativeFindNode(key, ALPHA, K, false)
 	log.Printf("Found %d closest nodes to store the value: %v\n", len(closest), idsOf(closest))
 	// closest := kademlia.IterativeFindNode(key)
 	//3. Send STORE RPCs to those nodes
@@ -192,12 +192,26 @@ func (kademlia *Kademlia) IterativeRefresh(key *KademliaID, kSize int) {
 	}
 }
 
-func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize int) []Contact {
+type findNodeResponse struct {
+	from     Contact
+	contacts []Contact
+}
+
+func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize int, log bool) []Contact {
+	probed := make(map[string]bool)
+
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
 	candidates.Append(shortlist)
+	candidates.Sort()
+
 	var closestSoFar *Contact = nil
+	if candidates.Len() > 0 {
+		closestSoFar = &candidates.contacts[0]
+	}
 	queried := make(map[string]bool)
+	queried[kademlia.Self.ID.String()] = true
+	probed[kademlia.Self.ID.String()] = true
 
 	for {
 		nodesToQuery := candidates.pickAlpha(queried, alpha)
@@ -206,46 +220,99 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 			break
 		}
 
-		responseChan := make(chan []Contact, len(nodesToQuery))
-		nbAwaitedAnswer := len(nodesToQuery)
-		for _, c := range nodesToQuery {
-			queried[c.ID.String()] = true
-			// contacts, _, _ := kademlia.FindNode(&c, target)
-			if kademlia.Self.ID.Equals(c.ID) {
-				nbAwaitedAnswer--
-				continue
-			}
-
-			go func(contact Contact) {
-				contacts, _, _ := kademlia.FindNode(&contact, target)
-				responseChan <- contacts
-			}(c)
-		}
-
-		progress := false
-		for i := 0; i < nbAwaitedAnswer; i++ {
-			newContacts := <-responseChan
-			if candidates.mergeAndSort(newContacts, target, kSize) {
-				progress = true
-			}
-		}
-
-		if candidates.Len() > 0 {
-			closestDistance := candidates.contacts[0]
-			if closestSoFar == nil || closestDistance.Less(closestSoFar) {
-				closestSoFar = &closestDistance
-			} else if !progress {
+		isStalled := closestSoFar != nil && !nodesToQuery[0].Less(closestSoFar)
+		if isStalled {
+			nodesToQuery = candidates.pickAlpha(queried, kSize)
+			if len(nodesToQuery) == 0 {
 				break
 			}
 		}
+		if log {
+			// fmt.Printf("[IterativeFindNode] Querying %d nodes: %v\n", len(nodesToQuery), idsOf(nodesToQuery))
+		}
 
-		if !progress {
+		// nbAwaitedAnswer := len(nodesToQuery)
+		responseChan := make(chan findNodeResponse, len(nodesToQuery))
+		for _, c := range nodesToQuery {
+			queried[c.ID.String()] = true
+			// contacts, _, _ := kademlia.FindNode(&c, target)
+			go func(contact Contact) {
+				contacts, result, _ := kademlia.FindNode(&contact, target)
+				if result {
+					responseChan <- findNodeResponse{from: contact, contacts: contacts}
+				} else {
+					responseChan <- findNodeResponse{from: contact, contacts: nil}
+				}
+			}(c)
+
+			// if kademlia.Self.ID.Equals(c.ID) {
+			// 	nbAwaitedAnswer--
+			// 	continue
+			// }
+
+			// go func(contact Contact) {
+			// 	contacts, _, _ := kademlia.FindNode(&contact, target)
+			// 	responseChan <- contacts
+			// }(c)
+		}
+
+		responses := 0
+
+		// progress := false
+		roundTimeout := time.After(3 * time.Second)
+		for i := 0; i < len(nodesToQuery); i++ {
+			select {
+			case resp := <-responseChan:
+				responses++
+				if resp.contacts != nil {
+					probed[resp.from.ID.String()] = true
+					candidates.mergeAndSort(resp.contacts, target, kSize)
+				}
+				// if candidates.mergeAndSort(newContacts, target, kSize) {
+				// 	progress = true
+				// }
+			case <-roundTimeout:
+				goto endRound
+			}
+		}
+	endRound:
+
+		newClosestNode := &candidates.contacts[0]
+		if !newClosestNode.Less(closestSoFar) && isStalled {
+			// If the search was stalled AND this round found no one better, we are done.
 			break
+		}
+
+		probedCount := 0
+		for i := 0; i < candidates.Len() && i < kSize; i++ {
+			if probed[candidates.contacts[i].ID.String()] {
+				probedCount++
+			}
+		}
+		if probedCount >= kSize {
+			// We have confirmed the K best nodes are active.
+			break
+		}
+		// if candidates.Len() > 0 {
+		// 	closestDistance := candidates.contacts[0]
+		// 	if closestSoFar == nil || closestDistance.Less(closestSoFar) {
+		// 		closestSoFar = &closestDistance
+		// 	} else if !progress {
+		// 		break
+		// 	}
+		// }
+
+		// if !progress {
+		// 	break
+		// }
+		if log {
+			// fmt.Printf("Canditates, %v\n", candidates.contacts)
 		}
 
 	}
 
 	if candidates.Len() < kSize {
+		// fmt.Printf("Number of Candiates %v\n", candidates.Len())
 		return candidates.GetContacts(candidates.Len())
 	}
 	return candidates.GetContacts(kSize)

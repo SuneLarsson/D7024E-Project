@@ -42,7 +42,7 @@ func TestIterativeFindNode(t *testing.T) {
 		nodeA.RoutingTable.AddContact(nodeC.Self)
 
 		target := NewRandomKademliaID()
-		result := nodeA.IterativeFindNode(target, 3, 20)
+		result := nodeA.IterativeFindNode(target, 3, 20, false)
 
 		ids := getIDs(result)
 		assert.Contains(t, ids, nodeB.Self.ID.String(), "Result should contain nodeB")
@@ -54,7 +54,7 @@ func TestIterativeFindNode(t *testing.T) {
 		node := NewTestKademliaNode("nodeX", sim)
 
 		target := NewRandomKademliaID()
-		result := node.IterativeFindNode(target, 3, 20)
+		result := node.IterativeFindNode(target, 3, 20, false)
 
 		assert.Empty(t, result, "Empty routing table should yield no contacts")
 	})
@@ -72,7 +72,7 @@ func TestIterativeFindNode(t *testing.T) {
 		nodeB.RoutingTable.AddContact(nodeC.Self)
 		nodeC.RoutingTable.AddContact(nodeD.Self)
 
-		result := nodeA.IterativeFindNode(nodeD.Self.ID, 3, 20)
+		result := nodeA.IterativeFindNode(nodeD.Self.ID, 3, 20, false)
 		ids := getIDs(result)
 
 		assert.Contains(t, ids, nodeD.Self.ID.String(), "A should discover D via iterative lookup")
@@ -86,7 +86,7 @@ func TestIterativeFindNode(t *testing.T) {
 		nodeC := NewTestKademliaNode("nodeC", sim)
 		nodeA.RoutingTable.AddContact(nodeC.Self)
 
-		result := nodeA.IterativeFindNode(target, 3, 20)
+		result := nodeA.IterativeFindNode(target, 3, 20, false)
 
 		if len(result) > 1 {
 			assert.True(t, result[0].distance.Less(result[1].distance),

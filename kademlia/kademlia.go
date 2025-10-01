@@ -99,7 +99,9 @@ func (k *Kademlia) managePendingRequests() {
 			pending[req.rpcID.String()] = req.responseChan
 		} else {
 			if ch, ok := pending[req.rpcID.String()]; ok {
-				ch <- req.responseMsg
+				if !req.responseMsg.RPCID.IsZero() {
+					ch <- req.responseMsg
+				}
 				delete(pending, req.rpcID.String())
 			}
 		}
@@ -116,7 +118,7 @@ func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 	kademlia.RoutingTable.AddContact(*knownContact)
 
 	//3. Run an Iterative Find Node on Self
-	kademlia.IterativeFindNode(kademlia.Self.ID, ALPHA, kademlia.k)
+	kademlia.IterativeFindNode(kademlia.Self.ID, ALPHA, kademlia.k, false)
 
 	//4. Refresh bucket further away than closest
 	// neighbor
@@ -130,7 +132,7 @@ func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 func (kademlia *Kademlia) RefreshBucket(idx int) {
 	contact := kademlia.RoutingTable.buckets[idx].getContactForBucketRefresh()
 	if contact.ID != nil {
-		kademlia.IterativeFindNode(contact.ID, ALPHA, kademlia.k)
+		kademlia.IterativeFindNode(contact.ID, ALPHA, kademlia.k, false)
 	}
 }
 

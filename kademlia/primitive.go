@@ -50,6 +50,14 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) ([]Cont
 	}
 	kademlia.mapManagerCh <- req
 
+	defer func() {
+		deregisterReq := MapRequest{
+			rpcID:    rpcID,
+			register: false,
+		}
+		kademlia.mapManagerCh <- deregisterReq
+	}()
+
 	findMsg := NewFindNodeMessage(kademlia.Self, rpcID, *contact, *target)
 	err := kademlia.Network.SendMessage(contact.Address, findMsg)
 	if err != nil {
