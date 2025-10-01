@@ -188,6 +188,18 @@ func (s *Server) handleConnection(conn net.Conn) {
 			} else {
 				reply(conn, "Value not stored")
 			}
+			key, _ = s.node.IterativeStore(splitRequest[1])
+			reply(conn, key)
+		case "routing":
+			response := s.node.RoutingTable.String()
+
+			reply(conn, response)
+			reply(conn, "END")
+
+		case "store":
+			fmt.Println(s.node.RoutingTable.String())
+
+			reply(conn, "END")
 		}
 	}
 
