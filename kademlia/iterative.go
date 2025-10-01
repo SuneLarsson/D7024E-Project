@@ -35,35 +35,49 @@ func idsOf(contacts []Contact) []string {
 }
 
 func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSize int) ([]Contact, *string) {
+	type findValueResponse struct {
+		from     *Contact
+		contacts []Contact
+		value    *string
+	}
+
+	probed := make(map[string]bool)
 	candidates := &ContactCandidates{}
 	shortlist := kademlia.RoutingTable.FindClosestContacts(target, alpha)
 	candidates.Append(shortlist)
+	candidates.Sort()
+
 	queried := make(map[string]bool)
 
 	var nodeWithoutValue *Contact = nil
+
+	var closestSoFar *Contact
+
+	if candidates.Len() > 0 {
+		closestSoFar = &candidates.contacts[0]
+	}
+
+	queried[kademlia.Self.ID.String()] = true
 
 	for {
 		nodesToQuery := candidates.pickAlpha(queried, alpha)
 
 		if len(nodesToQuery) == 0 {
-			fmt.Println("[IterativeFindValue] No more nodes to query, stopping")
 			break
 		}
-		fmt.Printf("[IterativeFindValue] Querying %d nodes: %v\n", len(nodesToQuery), idsOf(nodesToQuery))
-		type findValueResponse struct {
-			from     *Contact
-			contacts []Contact
-			value    *string
+
+		isStalled := closestSoFar != nil && !nodesToQuery[0].Less(closestSoFar)
+		if isStalled {
+			nodesToQuery = candidates.pickAlpha(queried, kSize)
+			if len(nodesToQuery) == 0 {
+				break
+			}
 		}
 
 		responseChan := make(chan findValueResponse, len(nodesToQuery))
-		nbAwaitedAnswer := len(nodesToQuery)
+		// nbAwaitedAnswer := len(nodesToQuery)
 		for _, c := range nodesToQuery {
 			queried[c.ID.String()] = true
-			if kademlia.Self.ID.Equals(c.ID) {
-				nbAwaitedAnswer--
-				continue
-			}
 			go func(contact Contact) {
 				// Use the FindValue RPC instead of FindNode
 				contacts, found, val := kademlia.FindValue(&contact, target)
@@ -75,51 +89,105 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 			}(c)
 		}
 
-		var roundResponses []findValueResponse
-		for i := 0; i < nbAwaitedAnswer; i++ {
-			roundResponses = append(roundResponses, <-responseChan)
-		}
+		// for i := 0; i < nbAwaitedAnswer; i++ {
+		// 	roundResponses = append(roundResponses, <-responseChan)
+		// }
+		// progress := false
+		// var roundResponses []findValueResponse
 
-		progress := false
+		// for _, resp :=  {
+		// 	if resp.value != nil {
+		// 		valueFound = resp.value
+		// 		} else {
+		// 			// This node did NOT have the value. It's a candidate for caching.
+		// 			resp.from.CalcDistance(target)
+		// 			if nodeWithoutValue == nil || resp.from.Less(nodeWithoutValue) {
+		// 			nodeCopy := *resp.from
+		// 			nodeWithoutValue = &nodeCopy
+		// 		}
+
+		// 		// Merge the new contacts from the response.
+		// 		if candidates.mergeAndSort(resp.contacts, target, kSize) {
+		// 			progress = true
+		// 		}
+		// 	}
+		// }
+
+		roundTimeout := time.After(3 * time.Second)
 		var valueFound *string = nil
+		for i := 0; i < len(nodesToQuery); i++ {
+			select {
+			case resp := <-responseChan:
+				if resp.value != nil {
+					valueFound = resp.value
+					hash := sha1.Sum([]byte(*valueFound))
+					key := hex.EncodeToString(hash[:])
 
-		for _, resp := range roundResponses {
-			if resp.value != nil {
-				valueFound = resp.value
-			} else {
-				// This node did NOT have the value. It's a candidate for caching.
-				resp.from.CalcDistance(target)
-				if nodeWithoutValue == nil || resp.from.Less(nodeWithoutValue) {
-					nodeCopy := *resp.from
-					nodeWithoutValue = &nodeCopy
+					// Launch the Store call in a separate goroutine and move on.
+					go func(node *Contact, val string, k string) {
+						if node != nil {
+							kademlia.Store(node, val, k)
+						}
+					}(nodeWithoutValue, *valueFound, key)
+					return nil, valueFound
 				}
 
-				// Merge the new contacts from the response.
-				if candidates.mergeAndSort(resp.contacts, target, kSize) {
-					progress = true
+				if resp.contacts != nil {
+					probed[resp.from.ID.String()] = true
+					candidates.mergeAndSort(resp.contacts, target, kSize)
+					contactThatReplied := resp.from
+					contactThatReplied.CalcDistance(target)
+					if nodeWithoutValue == nil || contactThatReplied.Less(nodeWithoutValue) {
+						nodeWithoutValue = contactThatReplied
+					}
 				}
+
+			case <-roundTimeout:
+				goto endRound
 			}
 		}
 
-		if valueFound != nil {
-			hash := sha1.Sum([]byte(*valueFound))
-			key := hex.EncodeToString(hash[:])
+	endRound:
 
-			// Launch the Store call in a separate goroutine and move on.
-			go func(node *Contact, val string, k string) {
-				if node != nil {
-					kademlia.Store(node, val, k)
-				}
-			}(nodeWithoutValue, *valueFound, key)
-
-			// The function returns IMMEDIATELY without waiting for the Store to finish.
-			return nil, valueFound
-		}
-
-		// If no progress was made, stall and exit.
-		if !progress {
+		if candidates.Len() == 0 {
 			break
 		}
+
+		newClosestNode := &candidates.contacts[0]
+		if !newClosestNode.Less(closestSoFar) && isStalled {
+			break
+		}
+		closestSoFar = newClosestNode
+
+		probedCount := 0
+		for i := 0; i < candidates.Len() && i < kSize; i++ {
+			if probed[candidates.contacts[i].ID.String()] {
+				probedCount++
+			}
+		}
+		if probedCount >= kSize {
+			break
+		}
+
+		// if valueFound != nil {
+		// 	hash := sha1.Sum([]byte(*valueFound))
+		// 	key := hex.EncodeToString(hash[:])
+
+		// 	// Launch the Store call in a separate goroutine and move on.
+		// 	go func(node *Contact, val string, k string) {
+		// 		if node != nil {
+		// 			kademlia.Store(node, val, k)
+		// 		}
+		// 	}(nodeWithoutValue, *valueFound, key)
+
+		// 	// The function returns IMMEDIATELY without waiting for the Store to finish.
+		// 	return nil, valueFound
+		// }
+
+		// // If no progress was made, stall and exit.
+		// if !progress {
+		// 	break
+		// }
 	}
 	if candidates.Len() < kSize {
 		return candidates.GetContacts(candidates.Len()), nil
@@ -230,11 +298,9 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 			}
 		}
 
-		// nbAwaitedAnswer := len(nodesToQuery)
 		responseChan := make(chan findNodeResponse, len(nodesToQuery))
 		for _, c := range nodesToQuery {
 			queried[c.ID.String()] = true
-			// contacts, _, _ := kademlia.FindNode(&c, target)
 			go func(contact Contact) {
 				contacts, result, _ := kademlia.FindNode(&contact, target)
 				if result {
@@ -247,7 +313,6 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 
 		responses := 0
 
-		// progress := false
 		roundTimeout := time.After(3 * time.Second)
 		for i := 0; i < len(nodesToQuery); i++ {
 			select {
@@ -280,7 +345,6 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 			}
 		}
 		if probedCount >= kSize {
-			// We have confirmed the K best nodes are active.
 			break
 		}
 

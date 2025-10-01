@@ -20,6 +20,14 @@ func (kademlia *Kademlia) SendPing(contact *Contact) error {
 
 	kademlia.mapManagerCh <- req
 
+	defer func() {
+		deregisterReq := MapRequest{
+			rpcID:    *rpcID,
+			register: false,
+		}
+		kademlia.mapManagerCh <- deregisterReq
+	}()
+
 	pingMsg := NewPingMessage(kademlia.Self, *rpcID, *contact)
 
 	fmt.Printf("PING message: %+v\n", pingMsg)
@@ -97,6 +105,14 @@ func (kademlia *Kademlia) Store(contact *Contact, value string, hash string) boo
 	}
 	kademlia.mapManagerCh <- req
 
+	defer func() {
+		deregisterReq := MapRequest{
+			rpcID:    rpcID,
+			register: false,
+		}
+		kademlia.mapManagerCh <- deregisterReq
+	}()
+
 	storeMsg := NewStoreMessage(kademlia.Self, rpcID, *contact, value)
 	err := kademlia.Network.SendMessage(contact.Address, storeMsg)
 	if err != nil {
@@ -131,6 +147,14 @@ func (kademlia *Kademlia) FindValue(contact *Contact, target *KademliaID) ([]Con
 		register:     true,
 	}
 	kademlia.mapManagerCh <- req
+
+	defer func() {
+		deregisterReq := MapRequest{
+			rpcID:    rpcID,
+			register: false,
+		}
+		kademlia.mapManagerCh <- deregisterReq
+	}()
 
 	findValueMsg := NewFindValueMessage(kademlia.Self, rpcID, *contact, *target)
 	err := kademlia.Network.SendMessage(contact.Address, findValueMsg)
@@ -177,6 +201,14 @@ func (kademlia *Kademlia) Refresh(contact *Contact, key string) bool {
 		register:     true,
 	}
 	kademlia.mapManagerCh <- req
+
+	defer func() {
+		deregisterReq := MapRequest{
+			rpcID:    rpcID,
+			register: false,
+		}
+		kademlia.mapManagerCh <- deregisterReq
+	}()
 
 	refreshMsg := NewRefreshMessage(kademlia.Self, rpcID, *contact, key)
 	err := kademlia.Network.SendMessage(contact.Address, refreshMsg)
