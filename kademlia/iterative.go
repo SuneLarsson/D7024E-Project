@@ -205,13 +205,24 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 	candidates.Append(shortlist)
 	candidates.Sort()
 
-	var closestSoFar *Contact = nil
+	var closestSoFar *Contact
+	// kademlia.Self.CalcDistance(target)
+	// closestSoFar = &kademlia.Self
+
+	// if candidates.Len() > 0 {
+	// 	bestFromShortlist := &candidates.contacts[0]
+	// 	if bestFromShortlist.Less(closestSoFar) {
+	// 		closestSoFar = bestFromShortlist
+	// 	}
+	// }
+
 	if candidates.Len() > 0 {
 		closestSoFar = &candidates.contacts[0]
 	}
+
 	queried := make(map[string]bool)
 	queried[kademlia.Self.ID.String()] = true
-	probed[kademlia.Self.ID.String()] = true
+	// probed[kademlia.Self.ID.String()] = true
 
 	for {
 		nodesToQuery := candidates.pickAlpha(queried, alpha)
@@ -228,7 +239,7 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 			}
 		}
 		if log {
-			// fmt.Printf("[IterativeFindNode] Querying %d nodes: %v\n", len(nodesToQuery), idsOf(nodesToQuery))
+			fmt.Printf("[IterativeFindNode] Querying %d nodes: %v\n", len(nodesToQuery), idsOf(nodesToQuery))
 		}
 
 		// nbAwaitedAnswer := len(nodesToQuery)
@@ -244,16 +255,6 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 					responseChan <- findNodeResponse{from: contact, contacts: nil}
 				}
 			}(c)
-
-			// if kademlia.Self.ID.Equals(c.ID) {
-			// 	nbAwaitedAnswer--
-			// 	continue
-			// }
-
-			// go func(contact Contact) {
-			// 	contacts, _, _ := kademlia.FindNode(&contact, target)
-			// 	responseChan <- contacts
-			// }(c)
 		}
 
 		responses := 0
@@ -306,7 +307,7 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 		// 	break
 		// }
 		if log {
-			// fmt.Printf("Canditates, %v\n", candidates.contacts)
+			fmt.Printf("Canditates, %v\n", candidates.contacts)
 		}
 
 	}

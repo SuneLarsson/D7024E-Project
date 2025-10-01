@@ -6,7 +6,6 @@ import (
 	"errors"
 	"math/rand"
 	"sync"
-	"time"
 )
 
 // SimulatedNetwork acts as an in-memory message bus for Kademlia nodes.
@@ -19,11 +18,11 @@ type SimulatedNetwork struct {
 
 // NewSimulatedNetwork creates a new network simulation with a configurable packet drop rate.
 // The dropRate should be a value between 0.0 (no drops) and 1.0 (all drops).
-func NewSimulatedNetwork(dropRate float64) *SimulatedNetwork {
+func NewSimulatedNetwork(dropRate float64, seed int64) *SimulatedNetwork {
 	return &SimulatedNetwork{
 		nodes:    make(map[string]*Kademlia),
 		dropRate: dropRate,
-		rand:     rand.New(rand.NewSource(time.Now().UnixNano())),
+		rand:     rand.New(rand.NewSource(seed)),
 	}
 }
 

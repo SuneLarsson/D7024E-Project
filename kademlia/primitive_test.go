@@ -17,7 +17,7 @@ func setupPrimitiveNodes(sim *SimulatedNetwork, addrA, addrB string) (*Kademlia,
 }
 
 func TestFindNodeTimeout(t *testing.T) {
-	sim := NewSimulatedNetwork(0)
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := NewTestKademliaNode("nodeA", sim)
 	badContact := Contact{
 		ID:      NewRandomKademliaID(),
@@ -30,7 +30,7 @@ func TestFindNodeTimeout(t *testing.T) {
 }
 
 func TestFindValueTimeout(t *testing.T) {
-	sim := NewSimulatedNetwork(0)
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := NewTestKademliaNode("nodeA", sim)
 	badContact := Contact{
 		ID:      NewRandomKademliaID(),
@@ -45,7 +45,7 @@ func TestFindValueTimeout(t *testing.T) {
 }
 
 func TestSendPing(t *testing.T) {
-	sim := NewSimulatedNetwork(0)
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, nodeB := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 
 	err := nodeA.SendPing(&nodeB.Self)
@@ -53,7 +53,7 @@ func TestSendPing(t *testing.T) {
 }
 
 func TestFindNodePrimitive(t *testing.T) {
-	sim := NewSimulatedNetwork(0)
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, nodeB := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 
 	target := nodeB.Self.ID
@@ -71,7 +71,7 @@ func TestFindNodePrimitive(t *testing.T) {
 }
 
 func TestStorePrimitive(t *testing.T) {
-	sim := NewSimulatedNetwork(0)
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, nodeB := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 
 	value := "helloWorld"
@@ -89,7 +89,7 @@ func TestStorePrimitive(t *testing.T) {
 }
 
 func TestFindValuePrimitive(t *testing.T) {
-	sim := NewSimulatedNetwork(0)
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, nodeB := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 
 	value := "secret"
@@ -104,7 +104,7 @@ func TestFindValuePrimitive(t *testing.T) {
 }
 
 func TestFindValueReturnsContactsWhenNotFound(t *testing.T) {
-	sim := NewSimulatedNetwork(0)
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, nodeB := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 
 	key := NewRandomKademliaID()
@@ -117,7 +117,7 @@ func TestFindValueReturnsContactsWhenNotFound(t *testing.T) {
 
 func TestPingTimeout(t *testing.T) {
 	// NodeA tries to ping a contact not in the network
-	sim := NewSimulatedNetwork(0)
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := NewTestKademliaNode("nodeA", sim)
 	badContact := Contact{
 		ID:      NewRandomKademliaID(),
@@ -130,7 +130,7 @@ func TestPingTimeout(t *testing.T) {
 
 func TestStoreTimeout(t *testing.T) {
 	// NodeA tries to store on nonexistent node
-	sim := NewSimulatedNetwork(0)
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := NewTestKademliaNode("nodeA", sim)
 	badContact := Contact{
 		ID:      NewRandomKademliaID(),
@@ -142,7 +142,7 @@ func TestStoreTimeout(t *testing.T) {
 }
 
 func TestForgetPrimitive(t *testing.T) {
-	sim := NewSimulatedNetwork(0)
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, _ := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 	nodeA.keyStore = make(map[string]chan string)
 
