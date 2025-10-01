@@ -3,6 +3,7 @@ package cli
 import (
 	"d7024e/server"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 )
@@ -18,15 +19,23 @@ var routingCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		conn := server.ConnectToServer(server.DEFAULT_SOCKET)
 		defer conn.Close()
+
 		server.SendMessage(conn, "routing")
-		rr := server.NewResponseReader(conn)
-		for {
-			response := rr.ListenToResponse()
-			fmt.Printf("DEBUG got [%s]\n", response)
-			if response == "END" {
-				break
-			}
-			fmt.Println(response)
+
+		response, err := server.ListenUntilEnd(conn)
+		if err != nil && err != io.EOF {
+			fmt.Println("Error reading response:", err)
+			return
 		}
+		fmt.Print(response)
+		// rr := server.NewResponseReader(conn)
+		// for {
+		// 	response, err := rr.ListenToResponse(conn)
+		// 	if err != nil {
+		// 		fmt.Println("Error reading response:", err)
+		// 		break
+		// 	}
+		// 	fmt.Print(response)
+		// }
 	},
 }

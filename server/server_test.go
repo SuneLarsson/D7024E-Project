@@ -28,7 +28,7 @@ func TestReply(t *testing.T) {
 	conn := ConnectToServer(socketPath)
 
 	go func() {
-		ch <- ListenToResponse(conn)
+		ch <- ListenOneLine(conn)
 	}()
 
 	SendMessage(conn, "ping")

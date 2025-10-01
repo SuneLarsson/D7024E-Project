@@ -4,22 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"strings"
 )
 
 const ERR_ABSENTSERVER string = "Socket does not exist at indicated socket path"
-
-type ResponseReader struct {
-	Reader *bufio.Reader
-}
-
-func NewResponseReader(conn net.Conn) *ResponseReader {
-	return &ResponseReader{
-		Reader: bufio.NewReader(conn),
-	}
-}
 
 func ConnectToServer(socketPath string) net.Conn {
 
@@ -44,20 +33,64 @@ func SendMessageWithArgument(conn net.Conn, messageType string, argument string)
 
 }
 
-func (rr *ResponseReader) ListenToResponse() string {
-
-	// var reply string
-
-	reply, err := rr.Reader.ReadString('\n')
-	if err != nil {
-		if err == io.EOF {
-			log.Print("Connection closed by server")
-			return "END"
-		}
-		return "END" // fail safe
-	}
-	fmt.Println("DEBUG: Raw reply from server:", reply)
-	// return reply //without trailing newline
-	return strings.TrimSpace(reply)
-
+func ListenOneLine(conn net.Conn) string {
+	resp, _ := Listen(conn, func(line string) bool {
+		return true // stop after first line
+	})
+	return resp
 }
+
+func ListenUntilEnd(conn net.Conn) (string, error) {
+	return Listen(conn, func(line string) bool {
+		return line == "END"
+	})
+}
+
+func Listen(conn net.Conn, stopCondition func(string) bool) (string, error) {
+	reader := bufio.NewReader(conn)
+	var sb strings.Builder
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				return sb.String(), io.EOF
+			}
+			return "", err
+		}
+
+		trimmed := strings.TrimSpace(line)
+		if stopCondition(trimmed) {
+			break
+		}
+
+		sb.WriteString(line) // preserve original newlines
+	}
+	return sb.String(), nil
+}
+
+// func (rr *ResponseReader) RoutingTest(conn net.Conn) (string, error) {
+
+// 	var sb strings.Builder
+
+// 	fmt.Println("Listening to response...")
+
+// 	for {
+// 		line, err := rr.Reader.ReadString('\n')
+// 		if err != nil {
+// 			if err == io.EOF {
+// 				return sb.String(), io.EOF
+// 			}
+// 			return "", err
+// 		}
+
+// 		trimmed := strings.TrimSpace(line)
+// 		if trimmed == "END" {
+// 			break
+// 		}
+
+// 		sb.WriteString(line) // keep original newlines
+// 	}
+// 	return sb.String(), nil
+
+// }
