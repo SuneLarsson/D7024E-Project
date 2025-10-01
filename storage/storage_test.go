@@ -95,6 +95,18 @@ func TestGetUnknownKey(t *testing.T) {
 	}
 }
 
+// Test for Get when last value in order
+func TestGetLastValue(t *testing.T) {
+	storage := NewStorage()
+	storage.Put("aaa", "wrongValue")
+	storage.Put("bbb", "wrongValue")
+	storage.Put("ccc", "rightValue")
+	storedValue, _ := storage.Get("ccc")
+	if storedValue != "rightValue" {
+		t.Error("Last value was not correctly recuperated")
+	}
+}
+
 // Test for Put already existing key
 func TestPutExistingKey(t *testing.T) {
 	defer func() {
@@ -147,6 +159,20 @@ func TestCleaning(t *testing.T) {
 	}
 }
 
+// Test of cleaning with a recent value before
+func TestCleaningWithRecentThenAncient(t *testing.T) {
+	storage := NewStorage()
+	storage.Put("aaa", "value")
+	timestamp := time.Now().AddDate(0, 0, -1).Add(100 * time.Millisecond).UnixMilli()
+	storage.PutWithTimestamp("bbb", "value", timestamp)
+	time.Sleep(200 * time.Millisecond)
+	storage.Clean()
+	sizeStorage := storage.Size()
+	if sizeStorage != 1 {
+		t.Error("Error in cleaning of ancient content")
+	}
+}
+
 // Test of reset of timestamp ancient values
 func TestResetTimestampBeforeCleaning(t *testing.T) {
 	storage := NewStorage()
@@ -160,4 +186,59 @@ func TestResetTimestampBeforeCleaning(t *testing.T) {
 	if sizeStorage1 != sizeStorage2 {
 		t.Error("Error in reseting timestamp of ancient content")
 	}
+}
+
+// Test the recuperation of the keys of the storage
+func TestGetKeys(t *testing.T) {
+	storage := NewStorage()
+
+	if len(storage.GetKeys()) != 0 {
+		t.Error("Storage should be empty on creation")
+	}
+
+	storage.Put("bbb", "value")
+
+	testKeyArray([]string{"bbb"}, storage.GetKeys(), t)
+
+	storage.Put("aaa", "value")
+
+	testKeyArray([]string{"aaa", "bbb"}, storage.GetKeys(), t)
+
+	storage.Put("ccc", "value")
+
+	testKeyArray([]string{"aaa", "bbb", "ccc"}, storage.GetKeys(), t)
+
+	storage.Put("aaa", "value")
+
+	testKeyArray([]string{"aaa", "bbb", "ccc"}, storage.GetKeys(), t)
+
+	storage.Put("bbb", "value")
+
+	testKeyArray([]string{"aaa", "bbb", "ccc"}, storage.GetKeys(), t)
+
+	storage.Put("ccc", "value")
+
+	testKeyArray([]string{"aaa", "bbb", "ccc"}, storage.GetKeys(), t)
+
+}
+
+func testKeyArray(reference []string, keyArray []string, t *testing.T) {
+	if len(reference) != len(keyArray) {
+		t.Errorf("There should be %d %s", len(reference), "keys")
+	}
+
+	for index := range len(keyArray) {
+		if reference[index] != keyArray[index] {
+			t.Errorf("There is a difference between %s and %s", toString(reference), toString(keyArray))
+		}
+	}
+}
+
+func toString(anArray []string) string {
+	returnValue := "["
+	for i := range len(anArray) {
+		returnValue += anArray[i] + ","
+	}
+	returnValue += "]"
+	return returnValue
 }

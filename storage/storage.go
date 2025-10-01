@@ -10,32 +10,47 @@ const ERR_INVALIDVALUE string = "INVALID VALUE"
 const ERR_INVALIDTIMESTAMP string = "INVALID TIMESTAMP"
 
 type StoredInfo struct {
-	information string
-	timestamp   int64
+	key       string
+	value     string
+	timestamp int64
+	next      *StoredInfo
 }
 
 type Storage struct {
-	mutex   sync.Mutex
-	hashmap map[string]*StoredInfo
+	mutex       sync.Mutex
+	information *StoredInfo
 }
 
 func NewStorage() *Storage {
-	return &Storage{hashmap: make(map[string]*StoredInfo)}
+	return &Storage{information: nil}
 }
 
 func (storage *Storage) Get(key string) (string, bool) {
 	if key == "" {
 		panic(ERR_INVALIDKEY)
 	}
+	return storage.iterativeGet(key)
+}
+
+func (storage *Storage) iterativeGet(key string) (string, bool) {
 	storage.mutex.Lock()
 	defer storage.mutex.Unlock()
-	value := storage.hashmap[key]
-	info := ""
-	if value != nil {
-		value.timestamp = time.Now().UnixMilli()
-		info = value.information
+	currentInfo := storage.information
+	returnedInfo := ""
+	found := false
+	for {
+		if currentInfo == nil {
+			break
+		}
+		if currentInfo.key == key {
+			currentInfo.timestamp = time.Now().UnixMilli()
+			returnedInfo = currentInfo.value
+			found = true
+			break
+		}
+		currentInfo = currentInfo.next
 	}
-	return info, value != nil
+	return returnedInfo, found
 }
 
 func (storage *Storage) Put(key string, value string) {
@@ -52,22 +67,82 @@ func (storage *Storage) PutWithTimestamp(key string, value string, timestamp int
 	if !isTimestampValid(timestamp) {
 		panic(ERR_INVALIDTIMESTAMP)
 	}
+	storage.iterativePut(key, value, timestamp)
+}
+
+func (storage *Storage) iterativePut(key string, value string, timestamp int64) {
 	storage.mutex.Lock()
 	defer storage.mutex.Unlock()
-	storage.hashmap[key] = &StoredInfo{information: value, timestamp: timestamp}
+	var previousInfo *StoredInfo = nil
+	currentInfo := storage.information
+	information := &StoredInfo{key: key, value: value, timestamp: timestamp}
+	for {
+		keepGoing := true
+		if currentInfo == nil {
+			keepGoing = false
+		} else {
+			if currentInfo.key == key {
+				keepGoing = false
+				information.next = currentInfo.next
+			}
+			if currentInfo.key > key {
+				keepGoing = false
+				information.next = currentInfo
+			}
+		}
+
+		if !keepGoing {
+			if previousInfo == nil {
+				storage.information = information
+			} else {
+				previousInfo.next = information
+			}
+			break
+		}
+		previousInfo = currentInfo
+		currentInfo = currentInfo.next
+	}
 }
 
 func (storage *Storage) Size() int {
-	return len(storage.hashmap)
+	length := 0
+	currentInfo := storage.information
+	for currentInfo != nil {
+		length++
+		currentInfo = currentInfo.next
+	}
+	return length
+}
+
+func (storage *Storage) GetKeys() []string {
+	storage.mutex.Lock()
+	defer storage.mutex.Unlock()
+	returnArray := []string{}
+	currentInfo := storage.information
+	for currentInfo != nil {
+		returnArray = append(returnArray, currentInfo.key)
+		currentInfo = currentInfo.next
+	}
+	return returnArray
 }
 
 func (storage *Storage) Clean() {
 	storage.mutex.Lock()
 	defer storage.mutex.Unlock()
-	for k, v := range storage.hashmap {
-		if !isTimestampValid(v.timestamp) {
-			delete(storage.hashmap, k)
+	var previousInfo *StoredInfo = nil
+	currentInfo := storage.information
+	for currentInfo != nil {
+		if !isTimestampValid(currentInfo.timestamp) {
+			if previousInfo == nil {
+				storage.information = currentInfo.next
+			} else {
+				previousInfo.next = currentInfo.next
+			}
+			currentInfo = currentInfo.next
+			continue
 		}
+		previousInfo = currentInfo
+		currentInfo = currentInfo.next
 	}
 }
 
