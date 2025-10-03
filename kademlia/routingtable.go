@@ -169,7 +169,23 @@ func (id *KademliaID) HasPrefix(prefix *KademliaID, depth int) bool {
 
 // CloneWithExtraBits returns a new KademliaID copying prefix and setting the next 'width' bits to 'value'.
 func (prefix *KademliaID) CloneWithExtraBits(depth int, value int, width int) *KademliaID {
-	// clone
+	total := IDLength * 8
+	if depth < 0 {
+		depth = 0
+	}
+	if width < 0 {
+		width = 0
+	}
+	if depth > total {
+		depth = total
+	}
+	if depth+width > total {
+		width = total - depth
+	}
+	// mask value to width bits
+	if width > 0 {
+		value &= (1 << uint(width)) - 1
+	}
 	out := new(KademliaID)
 	copy(out[:], prefix[:])
 
