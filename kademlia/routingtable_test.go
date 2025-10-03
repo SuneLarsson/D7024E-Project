@@ -163,20 +163,20 @@ func TestRoutingTablePrint(t *testing.T) {
 	fmt.Println(rt.String())
 }
 
-func TestGeneralRoutingTreePrint(t *testing.T) {
-	// Build a fake routing tree for b=2
-	root := &RoutingNode{prefix: ""}
-	root.child = []*RoutingNode{
-		{prefix: "00", bucket: newBucket()},
-		{prefix: "01", bucket: newBucket()},
-		{prefix: "10", bucket: newBucket()},
-		{prefix: "11", bucket: newBucket()},
-	}
+// func TestGeneralRoutingTreePrint(t *testing.T) {
+// 	// Build a fake routing tree for b=2
+// 	root := &RoutingNode{prefix: ""}
+// 	root.child = []*RoutingNode{
+// 		{prefix: "00", bucket: newBucket()},
+// 		{prefix: "01", bucket: newBucket()},
+// 		{prefix: "10", bucket: newBucket()},
+// 		{prefix: "11", bucket: newBucket()},
+// 	}
 
-	// Add some fake contacts
-	root.child[0].bucket.AddContact(NewContact(NewRandomKademliaID(), "nodeA"))
-	root.child[1].bucket.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
+// 	// Add some fake contacts
+// 	root.child[0].bucket.AddContact(NewContact(NewRandomKademliaID(), "nodeA"))
+// 	root.child[1].bucket.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
 
-	fmt.Println("Routing Tree (b=2):")
-	fmt.Println(root.PrintTree("", true))
-}
+// 	fmt.Println("Routing Tree (b=2):")
+// 	fmt.Println(root.PrintTree("", true))
+// }

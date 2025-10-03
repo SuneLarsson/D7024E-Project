@@ -9,15 +9,23 @@ import (
 // bucket definition
 // contains a List
 type bucket struct {
-	list *list.List
-	mu   sync.Mutex
+	list   *list.List
+	mu     sync.Mutex
+	prefix *KademliaID
+	depth  int
 }
 
 // newBucket returns a new instance of a bucket
-func newBucket() *bucket {
-	bucket := &bucket{}
-	bucket.list = list.New()
-	return bucket
+func newBucket(prefix *KademliaID, depth int) *bucket {
+	return &bucket{
+		list:   list.New(),
+		prefix: prefix,
+		depth:  depth,
+	}
+
+}
+func (bucket *bucket) containsID(id *KademliaID) bool {
+	return bucket.prefix.HasPrefix(id, bucket.depth)
 }
 
 // AddContact adds the Contact to the front of the bucket
