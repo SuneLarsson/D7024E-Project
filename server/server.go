@@ -15,6 +15,9 @@ import (
 
 const SEPARATING_STRING string = ":"
 const DEFAULT_SOCKET string = "/tmp/svc.sock"
+const ERR_NOMESSAGE string = "Message should at least contain type of message"
+const ERR_INVALIDSOCKET string = "Error listening on socket"
+const ERR_NODECREATIONFAILURE string = "Error creating kademlia node"
 
 type Server struct {
 	socketPath       string
@@ -40,16 +43,16 @@ func (s *Server) Listen() {
 	os.Remove(s.socketPath)
 
 	s.storage = storage.NewStorage()
-
 	ln, err := net.Listen("unix", s.socketPath)
 	if err != nil {
-		fmt.Println(err)
-		panic(err)
+		//fmt.Println(err)
+		panic(ERR_INVALIDSOCKET)
 	}
 
 	node, err := kademlia.NewKademliaNode("0.0.0.0", s.port)
 	if err != nil {
-		log.Fatal("Failed to create Kademlia node:", err)
+		fmt.Println(ERR_NODECREATIONFAILURE, ":", err)
+		panic(ERR_NODECREATIONFAILURE)
 	}
 	s.node = node
 	log.Printf("Node created with ID: %s on address %s", s.node.Self.ID, s.node.Self.Address)
@@ -78,7 +81,8 @@ func (s *Server) Listen() {
 
 		if err != nil {
 			// If it's still failing after all retries, then we exit.
-			log.Fatalf("Could not connect to bootstrap node after %d attempts. Exiting.", maxRetries)
+			fmt.Println("Could not connect to bootstrap node after", maxRetries, "attempts. Exiting.")
+			panic(ERR_NODECREATIONFAILURE)
 		}
 
 		// Find the full contact info from our routing table.
@@ -102,11 +106,10 @@ func (s *Server) Listen() {
 
 	for {
 		s.mutExit.RLock()
-		if s.exitNode {
-			s.mutExit.RUnlock()
+		test := s.exitNode
+		s.mutExit.RUnlock()
+		if test {
 			break
-		} else {
-			s.mutExit.RUnlock()
 		}
 
 		go func() {
@@ -124,7 +127,7 @@ func (s *Server) Listen() {
 		case err := <-errCh:
 			//TODO
 			fmt.Println("Error on connection:", err)
-		case <-time.After(3 * time.Second):
+		case <-time.After(1 * time.Second):
 
 		}
 
@@ -144,28 +147,27 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		splitRequest := strings.Split(request, SEPARATING_STRING)
 
-		if len(splitRequest) < 1 {
-			panic("Message shoud at least contain type of message")
+		if len(splitRequest) >= 1 {
+			switch splitRequest[0] {
+			case "exit":
+				s.mutExit.Lock()
+				s.exitNode = true
+				s.mutExit.Unlock()
+			case "ping":
+				reply(conn, "pong")
+			case "get":
+				// TODO: SEND BACK CONTACT
+				var response *string
+				_, response = s.node.LookupValue(splitRequest[1])
+				reply(conn, *response)
+			case "put":
+				// TODO: CHANGE IF VALUE NOT STORED WELL
+				var key string
+				key, _ = s.node.IterativeStore(splitRequest[1])
+				reply(conn, key)
+			}
 		}
 
-		switch splitRequest[0] {
-		case "exit":
-			s.mutExit.Lock()
-			s.exitNode = true
-			s.mutExit.Unlock()
-		case "ping":
-			reply(conn, "pong")
-		case "get":
-			// TODO: SEND BACK CONTACT
-			var response *string
-			_, response = s.node.LookupValue(splitRequest[1])
-			reply(conn, *response)
-		case "put":
-			// TODO: CHANGE IF VALUE NOT STORED WELL
-			var key string
-			key, _ = s.node.IterativeStore(splitRequest[1])
-			reply(conn, key)
-		}
 	}
 
 	if err := reader.Err(); err != nil {
