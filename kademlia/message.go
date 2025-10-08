@@ -116,7 +116,7 @@ func NewFindValueResponseMessage(from Contact, rpcID KademliaID, to Contact, val
 		RPCID:   rpcID,
 	}
 }
-func NewRefreshMessage(from Contact, rpcID KademliaID, to Contact, key string) *Message {
+func NewRefreshMessage(from Contact, rpcID KademliaID, to Contact, key KademliaID) *Message {
 	keyBytes, _ := json.Marshal(key)
 	return &Message{
 		Type:    REFRESH,
