@@ -212,7 +212,7 @@ func (kademlia *Kademlia) Refresh(contact *Contact, key string) bool {
 		addMapRequest(kademlia, deregisterReq)
 	}()
 
-	refreshMsg := NewRefreshMessage(kademlia.Self, rpcID, *contact, key)
+	refreshMsg := NewRefreshMessage(kademlia.Self, rpcID, *contact, *NewKademliaID(key))
 	err := kademlia.Network.SendMessage(contact.Address, refreshMsg)
 	if err != nil {
 		fmt.Println("Error sending REFRESH message:", err)
