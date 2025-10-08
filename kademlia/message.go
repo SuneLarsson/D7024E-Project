@@ -18,11 +18,12 @@ const (
 )
 
 type Message struct {
-	Type    MessageType
-	From    Contact
-	To      Contact // Do i need to include the To field in the Ping message?
-	Payload []byte
-	RPCID   KademliaID // Unique ID for matching requests and responses
+	Type             MessageType
+	From             Contact
+	To               Contact // Do i need to include the To field in the Ping message?
+	Payload          []byte
+	OriginalUploader bool
+	RPCID            KademliaID // Unique ID for matching requests and responses
 }
 
 func NewPingMessage(from Contact, rpcID KademliaID, to Contact) *Message {
@@ -65,14 +66,15 @@ func ResponseFindNodeMessage(from Contact, rpcID KademliaID, to Contact, contact
 	}
 }
 
-func NewStoreMessage(from Contact, rpcID KademliaID, to Contact, data string) *Message {
+func NewStoreMessage(from Contact, rpcID KademliaID, to Contact, data string, originalUploader bool) *Message {
 	dataBytes, _ := json.Marshal(data)
 	return &Message{
-		Type:    STORE,
-		From:    from,
-		To:      to,
-		Payload: dataBytes,
-		RPCID:   rpcID,
+		Type:             STORE,
+		From:             from,
+		To:               to,
+		Payload:          dataBytes,
+		OriginalUploader: originalUploader,
+		RPCID:            rpcID,
 	}
 }
 

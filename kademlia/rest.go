@@ -29,7 +29,7 @@ func (k *Kademlia) handleObjects(w http.ResponseWriter, r *http.Request) {
 	}
 	value := string(data)
 
-	key, success := k.IterativeStore(value)
+	key, success := k.IterativeStore(value, true)
 	if !success {
 		http.Error(w, "Failed to store object in the DHT: "+key, http.StatusInternalServerError)
 		return

@@ -3,7 +3,6 @@ package server
 import (
 	"bufio"
 	"d7024e/kademlia"
-	"d7024e/storage"
 	"fmt"
 	"log"
 	"net"
@@ -17,10 +16,10 @@ const SEPARATING_STRING string = ":"
 const DEFAULT_SOCKET string = "/tmp/svc.sock"
 
 type Server struct {
-	socketPath       string
-	exitNode         bool
-	mutExit          sync.RWMutex
-	storage          *storage.Storage
+	socketPath string
+	exitNode   bool
+	mutExit    sync.RWMutex
+	// storage          *storage.Storage
 	node             *kademlia.Kademlia
 	bootstrapAddress string
 	port             int
@@ -39,7 +38,7 @@ func NewServer(sockPath string, bootstrapAddress string, port int) *Server {
 func (s *Server) Listen() {
 	os.Remove(s.socketPath)
 
-	s.storage = storage.NewStorage()
+	// s.storage = storage.NewStorage()
 
 	ln, err := net.Listen("unix", s.socketPath)
 	if err != nil {
@@ -182,14 +181,14 @@ func (s *Server) handleConnection(conn net.Conn) {
 			// TODO: CHANGE IF VALUE NOT STORED WELL
 			var key string
 			var result bool
-			key, result = s.node.IterativeStore(splitRequest[1])
+			key, result = s.node.IterativeStore(splitRequest[1], true)
 			if result {
 				reply(conn, key)
 			} else {
 				reply(conn, "Value not stored")
 			}
-			key, _ = s.node.IterativeStore(splitRequest[1])
-			reply(conn, key)
+			// key, _ = s.node.IterativeStore(splitRequest[1])
+			// reply(conn, key)
 		case "routing":
 			response := s.node.RoutingTable.String()
 

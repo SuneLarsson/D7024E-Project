@@ -72,7 +72,7 @@ func (kademlia *Kademlia) handleRefresh(msg Message) {
 	stored, exists := kademlia.DataStore.Get(key.String())
 	refreshResult := false
 	if exists {
-		kademlia.DataStore.Put(key.String(), stored) // Refresh by re-putting
+		kademlia.DataStore.Put(key.String(), stored, false, true) // Refresh by re-putting
 		refreshResult = true
 	}
 	response := NewRefreshResponseMessage(kademlia.Self, msg.RPCID, msg.From, refreshResult)
@@ -87,10 +87,11 @@ func (kademlia *Kademlia) handleStore(msg Message) {
 		fmt.Println("Error unmarshaling value:", err)
 		return
 	}
+	// originalUploader := msg.OriginalUploader
 	hash := sha1.Sum([]byte(value))
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
 	storeResult := true
-	kademlia.DataStore.Put(key.String(), value)
+	kademlia.DataStore.Put(key.String(), value, false, msg.OriginalUploader)
 	if err := recover(); err != nil {
 		storeResult = false
 	}

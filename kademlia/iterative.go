@@ -102,7 +102,7 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 					// Launch the Store call in a separate goroutine and move on.
 					go func(node *Contact, val string, k string) {
 						if node != nil {
-							kademlia.Store(node, val, k)
+							kademlia.Store(node, val, k, false)
 						}
 					}(nodeWithoutValue, *valueFound, key)
 					return nil, valueFound
@@ -152,11 +152,13 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 	return candidates.GetContacts(kSize), nil
 }
 
-func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
+func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (string, bool) {
 	//1. Hash the value to get the key
 	dataToHash := []byte(value)
 	hash := sha1.Sum(dataToHash)
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
+
+	kademlia.DataStore.Put(key.String(), value, true, true)
 
 	//2. Find the k closest nodes to the key
 	closest := kademlia.IterativeFindNode(key, ALPHA, K)
@@ -168,7 +170,7 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 
 	for _, contact := range closest {
 		go func(c Contact) {
-			chStore <- kademlia.Store(&c, value, key.String())
+			chStore <- kademlia.Store(&c, value, key.String(), originalUploader)
 		}(contact)
 	}
 
@@ -181,10 +183,10 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 	// If at least one STORE was successful, consider it a success
 	// and print the number of successful stores
 	// Otherwise, print a failure message
-	if successCount > 0 {
+	if successCount > 0 && originalUploader {
 		log.Printf("Successfully stored value on %d nodes\n", successCount)
 		go func(key *KademliaID) {
-			ticker := time.NewTicker(12 * time.Hour)
+			ticker := time.NewTicker(time.Duration(tRepublish))
 			defer ticker.Stop()
 			forgetChan := make(chan string)
 			kademlia.keyMutex.Lock()
@@ -201,6 +203,8 @@ func (kademlia *Kademlia) IterativeStore(value string) (string, bool) {
 			}
 			fmt.Println("No more refreshing the value that has key", key.String())
 		}(key)
+	} else if !originalUploader {
+		log.Println("Not Original uploader")
 	} else {
 		log.Println("Failed to store value on any node")
 	}

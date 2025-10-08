@@ -43,7 +43,7 @@ func TestHandleStoreSuccess(t *testing.T) {
 	value := "storeMe"
 	hash := sha1Key(value)
 
-	ok := nodeA.Store(&nodeB.Self, value, hash)
+	ok := nodeA.Store(&nodeB.Self, value, hash, true)
 	assert.True(t, ok, "Store should succeed")
 
 	stored, exists := nodeB.DataStore.Get(hash)
@@ -75,7 +75,7 @@ func TestHandleFindValueFound(t *testing.T) {
 
 	value := "value123"
 	key := sha1Key(value)
-	nodeB.DataStore.Put(key, value)
+	nodeB.DataStore.Put(key, value, true, true)
 
 	_, found, val := nodeA.FindValue(&nodeB.Self, NewKademliaID(key))
 	require.True(t, found, "Value should be found")

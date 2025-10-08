@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math/rand"
 	"sync"
+	"time"
 )
 
 // SimulatedNetwork acts as an in-memory message bus for Kademlia nodes.
@@ -76,13 +77,19 @@ func NewTestKademliaNode(address string, sim *SimulatedNetwork) *Kademlia {
 	}
 	rt := NewRoutingTable(contact)
 
+	ttl := time.Duration(TTL) * time.Second
+
 	// 1. Create the Kademlia struct instance first.
 	kademliaNode := &Kademlia{
 		Self:         contact,
 		RoutingTable: rt,
-		DataStore:    *storage.NewStorage(),
+		DataStore:    *storage.NewStorage(ttl),
 		mapManagerCh: make(chan MapRequest),
 		keyStore:     make(map[string]chan string),
+		ttl:          ttl,
+		alpha:        ALPHA,
+		beta:         BETA,
+		k:            K,
 	}
 
 	// 2. Create the mock network adapter for this specific node.

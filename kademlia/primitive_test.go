@@ -78,7 +78,7 @@ func TestStorePrimitive(t *testing.T) {
 	key := hashKeyForValue(value)
 	// hash := sha1.Sum([]byte(value))
 	// key := hex.EncodeToString(hash[:])
-	ok := nodeA.Store(&nodeB.Self, value, key.String())
+	ok := nodeA.Store(&nodeB.Self, value, key.String(), true)
 
 	assert.True(t, ok, "Store RPC should succeed")
 
@@ -94,7 +94,7 @@ func TestFindValuePrimitive(t *testing.T) {
 
 	value := "secret"
 	key := hashKeyForValue(value)
-	nodeB.DataStore.Put(key.String(), value)
+	nodeB.DataStore.Put(key.String(), value, true, true)
 
 	contacts, found, gotValue := nodeA.FindValue(&nodeB.Self, key)
 
@@ -137,7 +137,7 @@ func TestStoreTimeout(t *testing.T) {
 		Address: "nonExistentNode",
 	}
 
-	ok := nodeA.Store(&badContact, "val", "key")
+	ok := nodeA.Store(&badContact, "val", "key", true)
 	assert.False(t, ok, "Store should fail on nonexistent node")
 }
 
@@ -147,7 +147,7 @@ func TestForgetPrimitive(t *testing.T) {
 	nodeA.keyStore = make(map[string]chan string)
 
 	value := "helloWorld"
-	key, _ := nodeA.IterativeStore(value)
+	key, _ := nodeA.IterativeStore(value, true)
 
 	time.Sleep(100 * time.Millisecond)
 

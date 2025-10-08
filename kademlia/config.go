@@ -47,9 +47,45 @@ func getTTL() int {
 	return ttl
 }
 
+func gettReplicate() int {
+	tReplicateStr := os.Getenv("tReplicate")
+	tReplicate, err := strconv.Atoi(tReplicateStr)
+	if err != nil {
+		log.Printf("Error parsing tReplicate from environment, using default 3600: %v", err)
+		return 3600
+	}
+
+	return tReplicate
+}
+
+func gettRepublish() int {
+	tRepublishStr := os.Getenv("tRepublish")
+	tRepublish, err := strconv.Atoi(tRepublishStr)
+	if err != nil {
+		log.Printf("Error parsing tRepublish from environment, using default 86400: %v", err)
+		return 86400
+	}
+
+	return tRepublish
+}
+
+func gettExpire() int {
+	tExpireStr := os.Getenv("tExpire")
+	tExpire, err := strconv.Atoi(tExpireStr)
+	if err != nil {
+		log.Printf("Error parsing tExpire from environment, using default 3600: %v", err)
+		return 3600 + 86400
+	}
+
+	return tExpire
+}
+
 var (
-	ALPHA = getAlpha()
-	BETA  = getBeta()
-	K     = getK()
-	TTL   = getTTL()
+	ALPHA      = getAlpha()
+	BETA       = getBeta()
+	K          = getK()
+	TTL        = getTTL()
+	tReplicate = gettReplicate()
+	tRepublish = gettRepublish()
+	tExpire    = gettExpire()
 )

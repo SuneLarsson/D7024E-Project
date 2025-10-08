@@ -67,16 +67,18 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 
 	routingtable := NewRoutingTable(contact)
 
+	ttl := time.Duration(TTL) * time.Second
+
 	kademlia := &Kademlia{
 		Self:         contact,
 		RoutingTable: routingtable,
 		mapManagerCh: make(chan MapRequest),
-		DataStore:    *storage.NewStorage(),
+		DataStore:    *storage.NewStorage(ttl),
 		keyStore:     make(map[string]chan string),
 		alpha:        ALPHA,
 		beta:         BETA,
 		k:            K,
-		ttl:          time.Duration(TTL) * time.Second,
+		ttl:          ttl,
 		// *storage.NewStorageWithTTL(60 * time.Second),
 	}
 
@@ -153,5 +155,24 @@ func (kademlia *Kademlia) RunPeriodicCleanup(interval time.Duration) {
 	for {
 		time.Sleep(interval)
 		kademlia.DataStore.Clean()
+	}
+}
+
+// PeriodicReplication implements the 1-hour replication rule.
+// It iterates over all data this node holds and re-stores it on the
+// k-closest nodes to ensure data persists even if nodes leave.
+func (kademlia *Kademlia) PeriodicReplication(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		log.Println("Starting periodic replication cycle...")
+		keys := kademlia.DataStore.GetKeys()
+		for _, keyStr := range keys {
+			value, _, found := kademlia.DataStore.GetValueAndMetadataForReplication(keyStr)
+			if found {
+				go kademlia.IterativeStore(value, true)
+			}
+		}
 	}
 }

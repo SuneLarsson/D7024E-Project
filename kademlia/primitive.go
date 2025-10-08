@@ -95,7 +95,7 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) ([]Cont
 // The sender of the STORE RPC provides a key and a block of data and requires that the recipient store the data and make it available for later retrieval by that key.
 
 // This is a primitive operation, not an iterative one.
-func (kademlia *Kademlia) Store(contact *Contact, value string, hash string) bool {
+func (kademlia *Kademlia) Store(contact *Contact, value string, hash string, originalUploader bool) bool {
 	rpcID := *NewRandomKademliaID()
 
 	req := MapRequest{
@@ -113,7 +113,7 @@ func (kademlia *Kademlia) Store(contact *Contact, value string, hash string) boo
 		kademlia.mapManagerCh <- deregisterReq
 	}()
 
-	storeMsg := NewStoreMessage(kademlia.Self, rpcID, *contact, value)
+	storeMsg := NewStoreMessage(kademlia.Self, rpcID, *contact, value, originalUploader)
 	err := kademlia.Network.SendMessage(contact.Address, storeMsg)
 	if err != nil {
 		fmt.Println("Error sending STORE message:", err)

@@ -151,7 +151,7 @@ func TestIterativeFindValue(t *testing.T) {
 
 		value := "testValue"
 		key := hashKeyForValue(value)
-		nodeB.DataStore.Put(key.String(), value)
+		nodeB.DataStore.Put(key.String(), value, true, true)
 
 		_, found := nodeA.IterativeFindValue(key, 3, 20)
 
@@ -193,7 +193,7 @@ func TestIterativeFindValue(t *testing.T) {
 		nodeC.Self.ID = idC
 
 		// Seed C with the value under the correct key
-		nodeC.DataStore.Put(key.String(), value)
+		nodeC.DataStore.Put(key.String(), value, true, true)
 
 		// Chain: A → B → C
 		nodeA.RoutingTable.AddContact(nodeB.Self)
@@ -225,7 +225,7 @@ func TestIterativeStore(t *testing.T) {
 		nodeA, nodeB := setupTwoNodes(sim, "nodeA", "nodeB")
 
 		value := "storeMe"
-		key, success := nodeA.IterativeStore(value)
+		key, success := nodeA.IterativeStore(value, true)
 
 		assert.True(t, success, "Store should succeed")
 		stored, _ := nodeB.DataStore.Get(key)
@@ -236,7 +236,7 @@ func TestIterativeStore(t *testing.T) {
 		sim := NewSimulatedNetwork(0, 0)
 		nodeA := NewTestKademliaNode("nodeA", sim)
 
-		_, success := nodeA.IterativeStore("nothingHappens")
+		_, success := nodeA.IterativeStore("nothingHappens", true)
 		assert.False(t, success, "Store should fail when no nodes are available")
 	})
 
@@ -250,7 +250,7 @@ func TestIterativeStore(t *testing.T) {
 		nodeA.RoutingTable.AddContact(nodeC.Self)
 
 		value := "spreadThis"
-		key, success := nodeA.IterativeStore(value)
+		key, success := nodeA.IterativeStore(value, true)
 
 		assert.True(t, success, "Store should succeed with multiple nodes")
 
