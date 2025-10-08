@@ -63,10 +63,11 @@ func (kademlia *Kademlia) handlePing(msg Message) {
 }
 
 func (kademlia *Kademlia) handleRefresh(msg Message) {
-	var key KademliaID
+	key := &KademliaID{}
+
 	err := json.Unmarshal(msg.Payload, &key)
 	if err != nil {
-		fmt.Println("Error unmarshaling key:", err)
+		// fmt.Println("Error unmarshaling key:", err)
 		return
 	}
 	stored, exists := kademlia.DataStore.Get(key.String())
@@ -84,7 +85,7 @@ func (kademlia *Kademlia) handleStore(msg Message) {
 	var value string
 	err := json.Unmarshal(msg.Payload, &value)
 	if err != nil {
-		fmt.Println("Error unmarshaling value:", err)
+		// fmt.Println("Error unmarshaling value:", err)
 		return
 	}
 	// originalUploader := msg.OriginalUploader
@@ -108,7 +109,7 @@ func (kademlia *Kademlia) handleFindValue(msg Message) {
 	targetID := &KademliaID{}
 	err := json.Unmarshal(msg.Payload, targetID)
 	if err != nil {
-		fmt.Println("Error unmarshaling target ID:", err)
+		// fmt.Println("Error unmarshaling target ID:", err)
 		return
 	}
 
@@ -132,7 +133,7 @@ func (kademlia *Kademlia) handleFindNode(msg Message) {
 	targetID := &KademliaID{}
 	err := json.Unmarshal(msg.Payload, targetID)
 	if err != nil {
-		fmt.Println("Error unmarshaling target ID:", err)
+		// fmt.Println("Error unmarshaling target ID:", err)
 		return
 	}
 

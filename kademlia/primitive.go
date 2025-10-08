@@ -85,8 +85,7 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) ([]Cont
 		}
 	case <-time.After(3 * time.Second):
 		// Timeout
-		//TODO add a breakout
-		fmt.Println("FindNode request timed out")
+		// fmt.Println("FindNode request timed out")
 	}
 	return []Contact{}, false, nil
 }
@@ -227,7 +226,7 @@ func (kademlia *Kademlia) Refresh(contact *Contact, key string) bool {
 		}
 	case <-time.After(3 * time.Second):
 		// Timeout
-		fmt.Println("Refresh request timed out")
+		// fmt.Println("Refresh request timed out")
 		return false
 	}
 	return false
