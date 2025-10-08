@@ -1,5 +1,10 @@
 package kademlia
 
+import (
+	"fmt"
+	"strings"
+)
+
 const bucketSize = 20
 
 // RoutingTable definition
@@ -9,6 +14,11 @@ type RoutingTable struct {
 	buckets [IDLength * 8]*bucket
 
 	ops chan RoutingRequest
+}
+type RoutingNode struct {
+	prefix string
+	bucket *bucket
+	child  []*RoutingNode
 }
 
 // NewRoutingTable returns a new instance of a RoutingTable
@@ -130,4 +140,59 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 	}
 
 	return IDLength*8 - 1
+}
+
+func (rt *RoutingTable) String() string {
+	result := "Routing Table:\n"
+	for i, bucket := range rt.buckets {
+		if bucket.Len() > 0 {
+			result += fmt.Sprintf("Bucket %d:\n", i)
+			for e := bucket.list.Front(); e != nil; e = e.Next() {
+				c := e.Value.(Contact)
+				result += fmt.Sprintf("  %s\n", c.String())
+			}
+		}
+	}
+	return result
+}
+
+func (node *RoutingNode) PrintTree(indent string, isTail bool) string {
+	var result strings.Builder
+
+	branch := "├── "
+	if isTail {
+		branch = "└── "
+	}
+
+	if node.prefix == "" {
+		result.WriteString(fmt.Sprintf("[Root]\n"))
+	} else {
+		result.WriteString(fmt.Sprintf("%s%s%s*\n", indent, branch, node.prefix))
+	}
+	if node.bucket != nil {
+		if node.bucket.Len() == 0 {
+			result.WriteString(fmt.Sprintf("%s    <empty>\n", indent))
+		} else {
+			for e := node.bucket.list.Front(); e != nil; e = e.Next() {
+				contact := e.Value.(Contact)
+				result.WriteString(fmt.Sprintf("%s    └── %s\n", indent, contact.String()))
+
+			}
+
+		}
+		return result.String()
+	}
+	newIndent := indent
+	if isTail {
+		newIndent += "    "
+	} else {
+		newIndent += "│   "
+	}
+	for i, child := range node.child {
+		isLast := (i == len(node.child)-1)
+		result.WriteString(child.PrintTree(newIndent, isLast))
+
+	}
+	return result.String()
+
 }

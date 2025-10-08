@@ -16,6 +16,7 @@ func TestReply(t *testing.T) {
 	})
 
 	server := NewServer(socketPath, "", 8000)
+	server.restPort = 8200
 
 	ch := make(chan string, 1)
 
@@ -28,7 +29,7 @@ func TestReply(t *testing.T) {
 	conn := ConnectToServer(socketPath)
 
 	go func() {
-		ch <- ListenToResponse(conn)
+		ch <- ListenOneLine(conn)
 	}()
 
 	SendMessage(conn, "ping")
@@ -49,6 +50,7 @@ func TestExitWorking(t *testing.T) {
 		os.Remove(socketPath)
 	})
 	server := NewServer(socketPath, "", 8001)
+	server.restPort = 8201
 
 	ch := make(chan string, 1)
 
@@ -74,6 +76,7 @@ func TestExitWorking(t *testing.T) {
 func TestErrorSocket(t *testing.T) {
 
 	server := NewServer("/does/not/exist", "", 8002)
+	server.restPort = 8202
 	ch := make(chan string, 1)
 	go func() {
 		defer func() {
@@ -110,12 +113,14 @@ func TestCreationTwoNodes(t *testing.T) {
 	}()
 
 	server1 := NewServer(socketPath, "", 8003)
+	server1.restPort = 8203
 
 	go func() {
 		server1.Listen()
 	}()
 	time.Sleep(100 * time.Millisecond)
 	server2 := NewServer(socketPath2, "", 8003)
+	server2.restPort = 8203
 	server2.Listen()
 
 }
@@ -126,6 +131,7 @@ func TestViaBootstrapNode(t *testing.T) {
 
 	ch := make(chan string, 1)
 	server1 := NewServer(socketPath, "", 8004)
+	server1.restPort = 8204
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -138,6 +144,7 @@ func TestViaBootstrapNode(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	server2 := NewServer(socketPath2, "0.0.0.0:8004", 8005)
+	server2.restPort = 8205
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -164,6 +171,7 @@ func TestNonExistingBootstrap(t *testing.T) {
 
 	ch := make(chan string, 1)
 	server := NewServer(socketPath, "0.0.0.0:8100", 8006)
+	server.restPort = 8206
 	go func() {
 		defer func() {
 			if err := recover(); err == nil || err != ERR_NODECREATIONFAILURE {

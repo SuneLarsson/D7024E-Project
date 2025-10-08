@@ -22,7 +22,7 @@ func TestNewKademliaNode(t *testing.T) {
 }
 
 func TestManagePendingRequestsDispatch(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	node := setupTestNode("nodeA", sim)
 
 	rpcID := *NewRandomKademliaID()
@@ -44,7 +44,7 @@ func TestManagePendingRequestsDispatch(t *testing.T) {
 }
 
 func TestJoinNetworkInsertsKnownContact(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := setupTestNode("nodeA", sim)
 	nodeB := setupTestNode("nodeB", sim)
 
@@ -61,7 +61,7 @@ func TestJoinNetworkInsertsKnownContact(t *testing.T) {
 }
 
 func TestJoinNetworkAssignsIDIfNil(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := setupTestNode("nodeA", sim)
 	nodeA.Self.ID = nil // wipe its ID
 
@@ -72,7 +72,7 @@ func TestJoinNetworkAssignsIDIfNil(t *testing.T) {
 }
 
 func TestRefreshBucketEmptyBucket(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := setupTestNode("nodeA", sim)
 
 	// Force refresh on an empty bucket
@@ -83,7 +83,7 @@ func TestRefreshBucketEmptyBucket(t *testing.T) {
 }
 
 func TestRefreshBucketWithContact(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := setupTestNode("nodeA", sim)
 	nodeB := setupTestNode("nodeB", sim)
 

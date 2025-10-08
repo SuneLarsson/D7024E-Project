@@ -3,11 +3,11 @@ package server
 import (
 	"bufio"
 	"d7024e/kademlia"
-	"d7024e/storage"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,13 +20,14 @@ const ERR_INVALIDSOCKET string = "Error listening on socket"
 const ERR_NODECREATIONFAILURE string = "Error creating kademlia node"
 
 type Server struct {
-	socketPath       string
-	exitNode         bool
-	mutExit          sync.RWMutex
-	storage          *storage.Storage
+	socketPath string
+	exitNode   bool
+	mutExit    sync.RWMutex
+	// storage          *storage.Storage
 	node             *kademlia.Kademlia
 	bootstrapAddress string
 	port             int
+	restPort         int64
 }
 
 func NewServer(sockPath string, bootstrapAddress string, port int) *Server {
@@ -35,6 +36,7 @@ func NewServer(sockPath string, bootstrapAddress string, port int) *Server {
 		exitNode:         false,
 		bootstrapAddress: bootstrapAddress,
 		port:             port,
+		restPort:         8081,
 	}
 }
 
@@ -42,7 +44,8 @@ func NewServer(sockPath string, bootstrapAddress string, port int) *Server {
 func (s *Server) Listen() {
 	os.Remove(s.socketPath)
 
-	s.storage = storage.NewStorage()
+	// s.storage = storage.NewStorage()
+
 	ln, err := net.Listen("unix", s.socketPath)
 	if err != nil {
 		//fmt.Println(err)
@@ -56,9 +59,11 @@ func (s *Server) Listen() {
 	}
 	s.node = node
 	log.Printf("Node created with ID: %s on address %s", s.node.Self.ID, s.node.Self.Address)
+	//Start REST server
 
 	if s.bootstrapAddress != "" {
 		log.Printf("Attempting to join network via bootstrap node at %s", s.bootstrapAddress)
+		go s.node.StartRESTServer(":" + strconv.FormatInt(s.restPort, 10))
 
 		dummyContact := kademlia.NewContact(kademlia.NewRandomKademliaID(), s.bootstrapAddress)
 
@@ -98,6 +103,7 @@ func (s *Server) Listen() {
 		// Now, join the network using the real, complete contact info.
 		s.node.JoinNetwork(&bootstrapContact)
 	} else {
+		go s.node.StartRESTServer(":" + strconv.FormatInt(s.restPort, 10))
 		log.Println("No bootstrap address provided. Starting as a bootstrap node.")
 	}
 
@@ -105,6 +111,7 @@ func (s *Server) Listen() {
 	errCh := make(chan error)
 
 	for {
+		// 1. Check the exit condition
 		s.mutExit.RLock()
 		test := s.exitNode
 		s.mutExit.RUnlock()
@@ -112,6 +119,7 @@ func (s *Server) Listen() {
 			break
 		}
 
+		// 2. Listen on the unix socket
 		go func() {
 			conn, err := ln.Accept()
 			if err != nil {
@@ -121,6 +129,7 @@ func (s *Server) Listen() {
 			connCh <- conn
 		}()
 
+		// 3. Wait 1 second for an interaction on one of the channels before going back to the loop
 		select {
 		case conn := <-connCh:
 			go s.handleConnection(conn)
@@ -133,6 +142,7 @@ func (s *Server) Listen() {
 
 	}
 
+	node.Shutdown()
 	ln.Close()
 	os.Remove(s.socketPath)
 }
@@ -148,6 +158,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		splitRequest := strings.Split(request, SEPARATING_STRING)
 
 		if len(splitRequest) >= 1 {
+
 			switch splitRequest[0] {
 			case "exit":
 				s.mutExit.Lock()
@@ -155,19 +166,47 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.mutExit.Unlock()
 			case "ping":
 				reply(conn, "pong")
+			case "forget":
+				response := "This node will stop to refresh value assigned as " + splitRequest[1]
+				s.node.Forget(splitRequest[1])
+				reply(conn, response)
 			case "get":
 				// TODO: SEND BACK CONTACT
+				if !s.node.IsValidKademliaID(splitRequest[1]) {
+					reply(conn, "Invalid key")
+					continue
+				}
 				var response *string
 				_, response = s.node.LookupValue(splitRequest[1])
-				reply(conn, *response)
+				if response != nil {
+					reply(conn, *response)
+				} else {
+					reply(conn, "Value not found")
+				}
 			case "put":
 				// TODO: CHANGE IF VALUE NOT STORED WELL
 				var key string
-				key, _ = s.node.IterativeStore(splitRequest[1])
-				reply(conn, key)
+				var result bool
+				key, result = s.node.IterativeStore(splitRequest[1], true)
+				if result {
+					reply(conn, key)
+				} else {
+					reply(conn, "Value not stored")
+				}
+				// key, _ = s.node.IterativeStore(splitRequest[1])
+				// reply(conn, key)
+			case "routing":
+				response := s.node.RoutingTable.String()
+
+				reply(conn, response)
+				reply(conn, "END")
+
+			case "store":
+				fmt.Println(s.node.RoutingTable.String())
+
+				reply(conn, "END")
 			}
 		}
-
 	}
 
 	if err := reader.Err(); err != nil {

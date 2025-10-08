@@ -8,18 +8,18 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(putCmd)
+	rootCmd.AddCommand(forgetCmd)
 }
 
-var putCmd = &cobra.Command{
-	Use:   "put",
-	Short: "Upload a file",
-	Long:  "Upload a file",
+var forgetCmd = &cobra.Command{
+	Use:   "forget",
+	Short: "Forget a value",
+	Long:  "Forget a value",
 	Run: func(cmd *cobra.Command, args []string) {
 		conn := server.ConnectToServer(server.DEFAULT_SOCKET)
 		defer conn.Close()
-		server.SendMessage(conn, "put"+server.SEPARATING_STRING+args[0])
+		server.SendMessage(conn, "forget"+server.SEPARATING_STRING+args[0])
 		response := server.ListenOneLine(conn)
-		fmt.Println("Value stored at key", response)
+		fmt.Println(response)
 	},
 }

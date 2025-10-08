@@ -19,7 +19,7 @@ var getCmd = &cobra.Command{
 		conn := server.ConnectToServer(server.DEFAULT_SOCKET)
 		defer conn.Close()
 		server.SendMessage(conn, "get"+server.SEPARATING_STRING+args[0])
-		response := server.ListenToResponse(conn)
+		response := server.ListenOneLine(conn)
 		fmt.Println(response)
 	},
 }

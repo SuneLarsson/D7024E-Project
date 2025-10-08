@@ -35,6 +35,10 @@ func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 		kademlia.handleFindValue(msg)
 	case FIND_VALUE_RESPONSE:
 		kademlia.handleResponse(msg)
+	case REFRESH:
+		kademlia.handleRefresh(msg)
+	case REFRESH_RESPONSE:
+		kademlia.handleResponse(msg)
 	default:
 		fmt.Println("Unknown message:", msg.Type)
 	}
@@ -58,6 +62,23 @@ func (kademlia *Kademlia) handlePing(msg Message) {
 	kademlia.Network.SendMessage(msg.From.Address, pong)
 }
 
+func (kademlia *Kademlia) handleRefresh(msg Message) {
+	var key KademliaID
+	err := json.Unmarshal(msg.Payload, &key)
+	if err != nil {
+		fmt.Println("Error unmarshaling key:", err)
+		return
+	}
+	stored, exists := kademlia.DataStore.Get(key.String())
+	refreshResult := false
+	if exists {
+		kademlia.DataStore.Put(key.String(), stored, false, true) // Refresh by re-putting
+		refreshResult = true
+	}
+	response := NewRefreshResponseMessage(kademlia.Self, msg.RPCID, msg.From, refreshResult)
+	kademlia.Network.SendMessage(msg.From.Address, response)
+}
+
 func (kademlia *Kademlia) handleStore(msg Message) {
 	// fmt.Printf("Received STORE from %s\n", &msg.From)
 	var value string
@@ -66,10 +87,11 @@ func (kademlia *Kademlia) handleStore(msg Message) {
 		fmt.Println("Error unmarshaling value:", err)
 		return
 	}
+	// originalUploader := msg.OriginalUploader
 	hash := sha1.Sum([]byte(value))
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
 	storeResult := true
-	kademlia.DataStore.Put(key.String(), value)
+	kademlia.DataStore.Put(key.String(), value, false, msg.OriginalUploader)
 	if err := recover(); err != nil {
 		storeResult = false
 	}

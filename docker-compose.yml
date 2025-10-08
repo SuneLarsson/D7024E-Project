@@ -6,8 +6,14 @@ services:
     tty: true
     networks:
       - kademlia_network
+    ports:
+      - "8081:8081" 
+    environment:
+      - ALPHA=${ALPHA}
+      - BETA=${BETA}
+      - K=${K}
+      - TTL=${TTL}
     hostname: bootstrap-node
-
   joining-nodes:
     image: kadlab:latest
     stdin_open: true
@@ -22,8 +28,14 @@ services:
         window: 10s
     networks:
       - kademlia_network
+    ports:
+      - "8080:8080"
     environment:
       - BOOTSTRAP_ADDRESS=bootstrap-node:8000
+      - ALPHA=${ALPHA}
+      - BETA=${BETA}
+      - K=${K}
+      - TTL=${TTL}
     depends_on:
       - bootstrap-node
 

@@ -3,6 +3,7 @@ package kademlia
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"fmt"
 	"testing"
 	"time"
 
@@ -36,13 +37,14 @@ func hashKeyForValue(value string) *KademliaID {
 
 func TestIterativeFindNode(t *testing.T) {
 	t.Run("Neighbors", func(t *testing.T) {
-		sim := NewSimulatedNetwork()
+		sim := NewSimulatedNetwork(0, 0)
 		nodeA, nodeB := setupTwoNodes(sim, "nodeA", "nodeB")
 		nodeC := NewTestKademliaNode("nodeC", sim)
 		nodeA.RoutingTable.AddContact(nodeC.Self)
 
 		target := NewRandomKademliaID()
 		result := nodeA.IterativeFindNode(target, 3, 20)
+		fmt.Printf("Result: %v\n", result)
 
 		ids := getIDs(result)
 		assert.Contains(t, ids, nodeB.Self.ID.String(), "Result should contain nodeB")
@@ -50,7 +52,7 @@ func TestIterativeFindNode(t *testing.T) {
 	})
 
 	t.Run("Empty routing table", func(t *testing.T) {
-		sim := NewSimulatedNetwork()
+		sim := NewSimulatedNetwork(0, 0)
 		node := NewTestKademliaNode("nodeX", sim)
 
 		target := NewRandomKademliaID()
@@ -59,15 +61,22 @@ func TestIterativeFindNode(t *testing.T) {
 		assert.Empty(t, result, "Empty routing table should yield no contacts")
 	})
 
-	t.Run("Multi-hop discovery", func(t *testing.T) {
-		sim := NewSimulatedNetwork()
+	t.Run("Multi-hop discovery ascending distance", func(t *testing.T) {
+		sim := NewSimulatedNetwork(0, 0)
 
 		nodeA := NewTestKademliaNode("nodeA", sim)
 		nodeB := NewTestKademliaNode("nodeB", sim)
 		nodeC := NewTestKademliaNode("nodeC", sim)
 		nodeD := NewTestKademliaNode("nodeD", sim)
 
-		// A → B → C → D
+		// A → B → C → D-d
+		nodeA.Self.ID = NewKademliaID("00000000000000000000000000000000000000A0")
+		nodeB.Self.ID = NewKademliaID("00000000000000000000000000000000000000B0")
+		nodeC.Self.ID = NewKademliaID("00000000000000000000000000000000000000C0")
+		nodeD.Self.ID = NewKademliaID("00000000000000000000000000000000000000D0")
+
+		fmt.Printf("A: %s\nB: %s\nC: %s\nD: %s\n",
+			nodeA.Self.ID, nodeB.Self.ID, nodeC.Self.ID, nodeD.Self.ID)
 		nodeA.RoutingTable.AddContact(nodeB.Self)
 		nodeB.RoutingTable.AddContact(nodeC.Self)
 		nodeC.RoutingTable.AddContact(nodeD.Self)
@@ -78,8 +87,47 @@ func TestIterativeFindNode(t *testing.T) {
 		assert.Contains(t, ids, nodeD.Self.ID.String(), "A should discover D via iterative lookup")
 	})
 
+	t.Run("Multi-hop discovery A closest H", func(t *testing.T) {
+		sim := NewSimulatedNetwork(0, 0)
+
+		nodeA := NewTestKademliaNode("nodeA", sim)
+		nodeB := NewTestKademliaNode("nodeB", sim)
+		nodeC := NewTestKademliaNode("nodeC", sim)
+		nodeD := NewTestKademliaNode("nodeD", sim)
+		nodeE := NewTestKademliaNode("nodeE", sim)
+		nodeF := NewTestKademliaNode("nodeF", sim)
+		nodeG := NewTestKademliaNode("nodeG", sim)
+		nodeH := NewTestKademliaNode("nodeH", sim)
+
+		// A → B → C → D → e → f → g -> h
+		// but key of A closest to H other wise further and further away from h
+		nodeA.Self.ID = NewKademliaID("0000000000000000000000000000000000000001")
+		nodeB.Self.ID = NewKademliaID("00000000000000000000000010000000000000B0")
+		nodeC.Self.ID = NewKademliaID("0000000000000000000000002000000000000000")
+		nodeD.Self.ID = NewKademliaID("00000000000000000000000030000000000000B0")
+		nodeE.Self.ID = NewKademliaID("0000000000000000000000004000000000000000")
+		nodeF.Self.ID = NewKademliaID("00000000000000000000000050000000000000B0")
+		nodeG.Self.ID = NewKademliaID("0000000000000000000000006000000000000000")
+		nodeH.Self.ID = NewKademliaID("0000000000000000000000000000000000000002")
+
+		// fmt.Printf("A: %s\nB: %s\nC: %s\nD: %s\n",
+		// 	nodeA.Self.ID, nodeB.Self.ID, nodeC.Self.ID, nodeD.Self.ID)
+		nodeA.RoutingTable.AddContact(nodeB.Self)
+		nodeB.RoutingTable.AddContact(nodeC.Self)
+		nodeC.RoutingTable.AddContact(nodeD.Self)
+		nodeD.RoutingTable.AddContact(nodeE.Self)
+		nodeE.RoutingTable.AddContact(nodeF.Self)
+		nodeF.RoutingTable.AddContact(nodeG.Self)
+		nodeG.RoutingTable.AddContact(nodeH.Self)
+
+		result := nodeA.IterativeFindNode(nodeH.Self.ID, 3, 20)
+		ids := getIDs(result)
+
+		assert.NotContains(t, ids, nodeH.Self.ID.String(), "A should not discover D via iterative lookup")
+	})
+
 	t.Run("Results sorted by distance", func(t *testing.T) {
-		sim := NewSimulatedNetwork()
+		sim := NewSimulatedNetwork(0, 0)
 		target := NewRandomKademliaID()
 
 		nodeA, _ := setupTwoNodes(sim, "nodeA", "nodeB")
@@ -98,12 +146,12 @@ func TestIterativeFindNode(t *testing.T) {
 
 func TestIterativeFindValue(t *testing.T) {
 	t.Run("Found value immediately", func(t *testing.T) {
-		sim := NewSimulatedNetwork()
+		sim := NewSimulatedNetwork(0, 0)
 		nodeA, nodeB := setupTwoNodes(sim, "nodeA", "nodeB")
 
 		value := "testValue"
 		key := hashKeyForValue(value)
-		nodeB.DataStore.Put(key.String(), value)
+		nodeB.DataStore.Put(key.String(), value, true, true)
 
 		_, found := nodeA.IterativeFindValue(key, 3, 20)
 
@@ -112,7 +160,7 @@ func TestIterativeFindValue(t *testing.T) {
 	})
 
 	t.Run("Not found returns contacts", func(t *testing.T) {
-		sim := NewSimulatedNetwork()
+		sim := NewSimulatedNetwork(0, 0)
 		nodeA, _ := setupTwoNodes(sim, "nodeA", "nodeB")
 
 		target := NewRandomKademliaID()
@@ -123,19 +171,17 @@ func TestIterativeFindValue(t *testing.T) {
 	})
 
 	t.Run("Caches value in closest node without value (deterministic IDs)", func(t *testing.T) {
-		sim := NewSimulatedNetwork()
+		sim := NewSimulatedNetwork(0, 0)
 
 		value := "forceCacheHere"
 		key := hashKeyForValue(value) // sha1(value)
 
-		//  key cbd2113b7d589122ff85128f173d10e07e822020
-		//   B ends with ...f0  -> XOR = 0x0f
-		//   C ends with ...01  -> XOR = 0xff
-
+		// Ensure that C i closest to key and B is next closest
 		idA := NewKademliaID("0000000000000000000000000000000000000001")
 		idB := NewKademliaID(key.String())
+		idB[19] ^= 0x02
+		idC := NewKademliaID(key.String())
 		idB[19] ^= 0x01
-		idC := NewKademliaID("0000000000000000000000000000000000000000")
 
 		nodeA := NewTestKademliaNode("nodeA", sim)
 		nodeB := NewTestKademliaNode("nodeB", sim)
@@ -146,30 +192,25 @@ func TestIterativeFindValue(t *testing.T) {
 		nodeB.Self.ID = idB
 		nodeC.Self.ID = idC
 
-		//Verify distances
-		distB := idB.CalcDistance(key)
-		distC := idC.CalcDistance(key)
-		require.True(t, distB.Less(distC),
-			"Test setup invalid: B (%s) must be closer to key %s than C (%s)",
-			idB, key, idC)
-
 		// Seed C with the value under the correct key
-		nodeC.DataStore.Put(key.String(), value)
+		nodeC.DataStore.Put(key.String(), value, true, true)
 
 		// Chain: A → B → C
 		nodeA.RoutingTable.AddContact(nodeB.Self)
 		nodeB.RoutingTable.AddContact(nodeC.Self)
 
 		// Perform lookup
-		nodeA.IterativeFindValue(key, 1, 20)
+		contacts, foundValue := nodeA.IterativeFindValue(key, 3, 20)
+		fmt.Printf("Contacts: %v\n", contacts)
+		fmt.Printf("Found value: %v\n", foundValue)
 
 		// Verify: B should eventually cache the value, A should not
 		require.Eventually(t, func() bool {
 			storedB, existsB := nodeB.DataStore.Get(key.String())
-			storedA, existsA := nodeA.DataStore.Get(key.String())
+			_, existsA := nodeA.DataStore.Get(key.String())
 
 			// log for debugging
-			t.Logf("A.has=%v, value=%q | B.has=%v, value=%q", existsA, storedA, existsB, storedB)
+			// t.Logf("A.has=%v, value=%q | B.has=%v, value=%q", existsA, storedA, existsB, storedB)
 
 			return !existsA && existsB && storedB == value
 		}, 2*time.Second, 50*time.Millisecond,
@@ -180,11 +221,11 @@ func TestIterativeFindValue(t *testing.T) {
 
 func TestIterativeStore(t *testing.T) {
 	t.Run("Stores on one neighbor", func(t *testing.T) {
-		sim := NewSimulatedNetwork()
+		sim := NewSimulatedNetwork(0, 0)
 		nodeA, nodeB := setupTwoNodes(sim, "nodeA", "nodeB")
 
 		value := "storeMe"
-		key, success := nodeA.IterativeStore(value)
+		key, success := nodeA.IterativeStore(value, true)
 
 		assert.True(t, success, "Store should succeed")
 		stored, _ := nodeB.DataStore.Get(key)
@@ -192,15 +233,15 @@ func TestIterativeStore(t *testing.T) {
 	})
 
 	t.Run("No nodes available", func(t *testing.T) {
-		sim := NewSimulatedNetwork()
+		sim := NewSimulatedNetwork(0, 0)
 		nodeA := NewTestKademliaNode("nodeA", sim)
 
-		_, success := nodeA.IterativeStore("nothingHappens")
+		_, success := nodeA.IterativeStore("nothingHappens", true)
 		assert.False(t, success, "Store should fail when no nodes are available")
 	})
 
 	t.Run("Stores on multiple nodes", func(t *testing.T) {
-		sim := NewSimulatedNetwork()
+		sim := NewSimulatedNetwork(0, 0)
 		nodeA := NewTestKademliaNode("nodeA", sim)
 		nodeB := NewTestKademliaNode("nodeB", sim)
 		nodeC := NewTestKademliaNode("nodeC", sim)
@@ -209,7 +250,7 @@ func TestIterativeStore(t *testing.T) {
 		nodeA.RoutingTable.AddContact(nodeC.Self)
 
 		value := "spreadThis"
-		key, success := nodeA.IterativeStore(value)
+		key, success := nodeA.IterativeStore(value, true)
 
 		assert.True(t, success, "Store should succeed with multiple nodes")
 
