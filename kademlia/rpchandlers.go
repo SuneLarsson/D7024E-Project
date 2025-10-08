@@ -53,7 +53,7 @@ func (k *Kademlia) handleResponse(msg Message) {
 		register:    false,
 	}
 
-	k.mapManagerCh <- dispatchRequest
+	addMapRequest(k, dispatchRequest)
 }
 
 func (kademlia *Kademlia) handlePing(msg Message) {

@@ -17,15 +17,14 @@ func (kademlia *Kademlia) SendPing(contact *Contact) error {
 		responseChan: responseChan,
 		register:     true,
 	}
-
-	kademlia.mapManagerCh <- req
+	addMapRequest(kademlia, req)
 
 	defer func() {
 		deregisterReq := MapRequest{
 			rpcID:    *rpcID,
 			register: false,
 		}
-		kademlia.mapManagerCh <- deregisterReq
+		addMapRequest(kademlia, deregisterReq)
 	}()
 
 	pingMsg := NewPingMessage(kademlia.Self, *rpcID, *contact)
@@ -56,14 +55,14 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) ([]Cont
 		responseChan: make(chan Message, 1),
 		register:     true,
 	}
-	kademlia.mapManagerCh <- req
+	addMapRequest(kademlia, req)
 
 	defer func() {
 		deregisterReq := MapRequest{
 			rpcID:    rpcID,
 			register: false,
 		}
-		kademlia.mapManagerCh <- deregisterReq
+		addMapRequest(kademlia, deregisterReq)
 	}()
 
 	findMsg := NewFindNodeMessage(kademlia.Self, rpcID, *contact, *target)
@@ -90,6 +89,10 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) ([]Cont
 	return []Contact{}, false, nil
 }
 
+func addMapRequest(kademlia *Kademlia, req MapRequest) {
+	kademlia.mapManagerCh <- req
+}
+
 // STORE
 // The sender of the STORE RPC provides a key and a block of data and requires that the recipient store the data and make it available for later retrieval by that key.
 
@@ -102,14 +105,14 @@ func (kademlia *Kademlia) Store(contact *Contact, value string, hash string, ori
 		responseChan: make(chan Message, 1),
 		register:     true,
 	}
-	kademlia.mapManagerCh <- req
+	addMapRequest(kademlia, req)
 
 	defer func() {
 		deregisterReq := MapRequest{
 			rpcID:    rpcID,
 			register: false,
 		}
-		kademlia.mapManagerCh <- deregisterReq
+		addMapRequest(kademlia, deregisterReq)
 	}()
 
 	storeMsg := NewStoreMessage(kademlia.Self, rpcID, *contact, value, originalUploader)
@@ -145,14 +148,14 @@ func (kademlia *Kademlia) FindValue(contact *Contact, target *KademliaID) ([]Con
 		responseChan: make(chan Message, 1),
 		register:     true,
 	}
-	kademlia.mapManagerCh <- req
+	addMapRequest(kademlia, req)
 
 	defer func() {
 		deregisterReq := MapRequest{
 			rpcID:    rpcID,
 			register: false,
 		}
-		kademlia.mapManagerCh <- deregisterReq
+		addMapRequest(kademlia, deregisterReq)
 	}()
 
 	findValueMsg := NewFindValueMessage(kademlia.Self, rpcID, *contact, *target)
@@ -199,14 +202,14 @@ func (kademlia *Kademlia) Refresh(contact *Contact, key string) bool {
 		responseChan: make(chan Message, 1),
 		register:     true,
 	}
-	kademlia.mapManagerCh <- req
+	addMapRequest(kademlia, req)
 
 	defer func() {
 		deregisterReq := MapRequest{
 			rpcID:    rpcID,
 			register: false,
 		}
-		kademlia.mapManagerCh <- deregisterReq
+		addMapRequest(kademlia, deregisterReq)
 	}()
 
 	refreshMsg := NewRefreshMessage(kademlia.Self, rpcID, *contact, key)

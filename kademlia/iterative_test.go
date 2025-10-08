@@ -260,6 +260,13 @@ func TestIterativeStore(t *testing.T) {
 		assert.Equal(t, value, storedB)
 		assert.Equal(t, value, storedC)
 	})
+
+	t.Run("Stores invalid value", func(t *testing.T) {
+		sim := NewSimulatedNetwork(0, 0)
+		nodeA := NewTestKademliaNode("nodeA", sim)
+		_, isValid := nodeA.IterativeStore("", true)
+		assert.False(t, isValid, "Storing an empty value should be invalid")
+	})
 }
 
 func TestHelpers(t *testing.T) {
