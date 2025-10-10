@@ -27,16 +27,26 @@ type Server struct {
 	node             *kademlia.Kademlia
 	bootstrapAddress string
 	port             int
-	restPort         int64
+	restPort         int
 }
 
 func NewServer(sockPath string, bootstrapAddress string, port int) *Server {
+	restPortStr := os.Getenv("REST_PORT")
+	if restPortStr == "" {
+		restPortStr = "8081" // Default port
+	}
+
+	restPort, err := strconv.Atoi(restPortStr)
+	if err != nil {
+		log.Fatalf("Invalid REST_PORT value: %v", err)
+	}
+
 	return &Server{
 		socketPath:       sockPath,
 		exitNode:         false,
 		bootstrapAddress: bootstrapAddress,
 		port:             port,
-		restPort:         8081,
+		restPort:         restPort,
 	}
 }
 
@@ -63,7 +73,9 @@ func (s *Server) Listen() {
 
 	if s.bootstrapAddress != "" {
 		log.Printf("Attempting to join network via bootstrap node at %s", s.bootstrapAddress)
-		go s.node.StartRESTServer(":" + strconv.FormatInt(s.restPort, 10))
+		restAddr := fmt.Sprintf(":%d", s.restPort)
+
+		go s.node.StartRESTServer(restAddr)
 
 		dummyContact := kademlia.NewContact(kademlia.NewRandomKademliaID(), s.bootstrapAddress)
 
@@ -103,7 +115,9 @@ func (s *Server) Listen() {
 		// Now, join the network using the real, complete contact info.
 		s.node.JoinNetwork(&bootstrapContact)
 	} else {
-		go s.node.StartRESTServer(":" + strconv.FormatInt(s.restPort, 10))
+		restAddr := fmt.Sprintf(":%d", s.restPort)
+
+		go s.node.StartRESTServer(restAddr)
 		log.Println("No bootstrap address provided. Starting as a bootstrap node.")
 	}
 
