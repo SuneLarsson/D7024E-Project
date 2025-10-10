@@ -27,6 +27,7 @@ var routingCmd = &cobra.Command{
 			fmt.Println("Error reading response:", err)
 			return
 		}
+
 		fmt.Print(response)
 		// rr := server.NewResponseReader(conn)
 		// for {

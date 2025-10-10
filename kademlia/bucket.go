@@ -92,3 +92,44 @@ func (bucket *bucket) getContactForBucketRefresh() Contact {
 	}
 	return element.Value.(Contact)
 }
+
+func (bucket *bucket) split() (*bucket, *bucket) {
+	leftPrefix := copyID(bucket.prefix)
+	rightPrefix := copyID(bucket.prefix)
+	setBit(rightPrefix, bucket.depth, 1)
+
+	left := newBucket(leftPrefix, bucket.depth+1)
+	right := newBucket(rightPrefix, bucket.depth+1)
+
+	//Distribute contacts
+	for e := bucket.list.Front(); e != nil; e = e.Next() {
+		contact := e.Value.(Contact)
+		if left.containsID(contact.ID) {
+			left.list.PushBack(contact)
+		} else {
+			right.list.PushBack(contact)
+		}
+	}
+
+	return left, right
+}
+
+func setBit(id *KademliaID, bitIndex int, value int) {
+	byteIndex := bitIndex / 8
+	bitOffset := 7 - (bitIndex % 8)
+
+	if byteIndex >= len(id) {
+		return // out of bounds, ignore
+	}
+
+	if value == 1 {
+		id[byteIndex] |= (1 << bitOffset)
+	} else {
+		id[byteIndex] &^= (1 << bitOffset) // clear the bit
+	}
+}
+
+func copyID(id *KademliaID) *KademliaID {
+	clone := *id // dereference and copy the underlying [20]byte array
+	return &clone
+}

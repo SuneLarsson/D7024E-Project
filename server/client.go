@@ -68,29 +68,3 @@ func Listen(conn net.Conn, stopCondition func(string) bool) (string, error) {
 	}
 	return sb.String(), nil
 }
-
-// func (rr *ResponseReader) RoutingTest(conn net.Conn) (string, error) {
-
-// 	var sb strings.Builder
-
-// 	fmt.Println("Listening to response...")
-
-// 	for {
-// 		line, err := rr.Reader.ReadString('\n')
-// 		if err != nil {
-// 			if err == io.EOF {
-// 				return sb.String(), io.EOF
-// 			}
-// 			return "", err
-// 		}
-
-// 		trimmed := strings.TrimSpace(line)
-// 		if trimmed == "END" {
-// 			break
-// 		}
-
-// 		sb.WriteString(line) // keep original newlines
-// 	}
-// 	return sb.String(), nil
-
-// }

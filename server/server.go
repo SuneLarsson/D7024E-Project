@@ -192,6 +192,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			reply(conn, key)
 		case "routing":
 			response := s.node.RoutingTable.String()
+			// responseTree := s.node.RoutingTable.PrintTree()
 
 			reply(conn, response)
 			reply(conn, "END")

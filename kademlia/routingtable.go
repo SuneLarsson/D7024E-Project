@@ -16,11 +16,6 @@ type RoutingTable struct {
 
 	ops chan RoutingRequest
 }
-type RoutingNode struct {
-	prefix string
-	bucket *bucket
-	child  []*RoutingNode
-}
 
 // NewRoutingTable returns a new instance of a RoutingTable
 func NewRoutingTable(me Contact) *RoutingTable {
@@ -28,7 +23,7 @@ func NewRoutingTable(me Contact) *RoutingTable {
 		me:  me,
 		ops: make(chan RoutingRequest),
 	}
-	root := newBucket(NewKademliaID("0...0"), 0)
+	root := newBucket(NewZeroKademliaID(), 0)
 	// routingTable.me = me
 	// return routingTable
 	routingTable.buckets = []*bucket{root}
@@ -40,6 +35,7 @@ func (routingTable *RoutingTable) run() {
 	for req := range routingTable.ops {
 		switch req.requestType {
 		case AddContact:
+
 			contact := req.contact
 			bucketIndex := routingTable.findLeafBucketIndex(contact.ID)
 			bucket := routingTable.buckets[bucketIndex]
@@ -61,7 +57,7 @@ func (routingTable *RoutingTable) run() {
 					bucket.list.PushFront(contact)
 				} else {
 					// Split or evict
-					if bucket.containsID(routingTable.me.ID) {
+					if bucket.containsID(routingTable.me.ID) || (bucket.depth%BETA) != 0 {
 						bucket.mu.Unlock()
 						routingTable.splitBucket(bucketIndex)
 						// Retry adding the contact after splitting
@@ -93,28 +89,16 @@ func (routingTable *RoutingTable) run() {
 			contacts := routingTable.findClosestContactsInternal(req.target, req.count)
 			req.responseCh <- contacts
 		}
+
 	}
 }
 
 func (routingTable *RoutingTable) splitBucket(idx int) {
 	oldBucket := routingTable.buckets[idx]
+	left, right := oldBucket.split()
 
-	branchFactor := 1 << BETA
+	routingTable.buckets = append(routingTable.buckets[:idx], append([]*bucket{left, right}, routingTable.buckets[idx+1:]...)...)
 
-	//Create child buckets
-	children := make([]*bucket, branchFactor)
-	for i := 0; i < branchFactor; i++ {
-		childPrefix := oldBucket.prefix.CloneWithExtraBits(oldBucket.depth, i, BETA)
-		children[i] = newBucket(childPrefix, oldBucket.depth+branchFactor)
-	}
-
-	// Redistribute the child buckets in place of the old bucket
-	for e := oldBucket.list.Front(); e != nil; e = e.Next() {
-		contact := e.Value.(Contact)
-		childIndex := bucketIndexFor(children, contact.ID)
-		children[childIndex].list.PushFront(contact)
-	}
-	routingTable.buckets = append(routingTable.buckets[:idx], append(children, routingTable.buckets[idx+1:]...)...)
 }
 
 func (rt *RoutingTable) findLeafBucketIndex(id *KademliaID) int {
@@ -257,21 +241,15 @@ func (routingTable *RoutingTable) findClosestContactsInternal(target *KademliaID
 
 // getBucketIndex get the correct Bucket index for the KademliaID
 func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
-	distance := id.CalcDistance(routingTable.me.ID)
-	bits := IDLength * 8
-	for i := 0; i < IDLength; i++ {
-		if distance[i] != 0 {
-			for j := 0; j < 8; j++ {
-				if (distance[i]>>uint8(7-j))&0x1 != 0 {
-					bitIndex := i*8 + j
-					closness := bits - bitIndex - 1
+	idBits := id.ToBinaryString()
 
-					return closness / BETA
-				}
-			}
+	for i, b := range routingTable.buckets {
+		if strings.HasPrefix(idBits, b.prefix) {
+			return i
 		}
 	}
 
+	// Fallback: return the last bucket
 	return len(routingTable.buckets) - 1
 }
 
@@ -289,43 +267,60 @@ func (routingTable *RoutingTable) String() string {
 	return result
 }
 
-func (node *RoutingNode) PrintTree(indent string, isTail bool) string {
-	var result strings.Builder
+func (rt *RoutingTable) PrintTree() string {
+	var builder strings.Builder
+	builder.WriteString("[Root]\n")
 
-	branch := "├── "
-	if isTail {
-		branch = "└── "
+	rt.printSubtree(&builder, "", true, "", 0, IDLength*8)
+	return builder.String()
+}
+
+// Recursive conceptual printer
+func (rt *RoutingTable) printSubtree(
+	builder *strings.Builder,
+	indent string,
+	isTail bool,
+	prefix string,
+	start, end int,
+) {
+	if start >= len(rt.buckets) {
+		return // Prevent index out of range
 	}
-
-	if node.prefix == "" {
-		result.WriteString(fmt.Sprintf("[Root]\n"))
-	} else {
-		result.WriteString(fmt.Sprintf("%s%s%s*\n", indent, branch, node.prefix))
-	}
-	if node.bucket != nil {
-		if node.bucket.Len() == 0 {
-			result.WriteString(fmt.Sprintf("%s    <empty>\n", indent))
-		} else {
-			for e := node.bucket.list.Front(); e != nil; e = e.Next() {
-				contact := e.Value.(Contact)
-				result.WriteString(fmt.Sprintf("%s    └── %s\n", indent, contact.String()))
-
-			}
-
+	// Base case: reached leaf (bucket range)
+	if end-start == 1 {
+		bucket := rt.buckets[start]
+		branch := "├── "
+		if isTail {
+			branch = "└── "
 		}
-		return result.String()
+
+		builder.WriteString(fmt.Sprintf("%s%s%s*\n", indent, branch, prefix))
+		if bucket.Len() == 0 {
+			builder.WriteString(fmt.Sprintf("%s    <empty>\n", indent))
+		} else {
+			for e := bucket.list.Front(); e != nil; e = e.Next() {
+				c := e.Value.(Contact)
+				builder.WriteString(fmt.Sprintf("%s    └── %s\n", indent, c.String()))
+			}
+		}
+		return
 	}
+
+	// Internal branch
+	mid := (start + end) / 2
+	leftPrefix := prefix + "0"
+	rightPrefix := prefix + "1"
+
 	newIndent := indent
 	if isTail {
 		newIndent += "    "
 	} else {
 		newIndent += "│   "
 	}
-	for i, child := range node.child {
-		isLast := (i == len(node.child)-1)
-		result.WriteString(child.PrintTree(newIndent, isLast))
 
-	}
-	return result.String()
+	fmt.Fprintf(builder, "%s├── %s*\n", indent, leftPrefix)
+	rt.printSubtree(builder, newIndent, false, leftPrefix, start, mid)
 
+	fmt.Fprintf(builder, "%s└── %s*\n", indent, rightPrefix)
+	rt.printSubtree(builder, newIndent, true, rightPrefix, mid, end)
 }

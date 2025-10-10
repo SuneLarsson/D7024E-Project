@@ -36,6 +36,10 @@ func NewRandomKademliaID() *KademliaID {
 	}
 	return &newKademliaID
 }
+func NewZeroKademliaID() *KademliaID {
+	var z KademliaID // all-zero 160-bit ID
+	return &z
+}
 
 // Less returns true if kademliaID < otherKademliaID (bitwise)
 func (kademliaID KademliaID) Less(otherKademliaID *KademliaID) bool {
