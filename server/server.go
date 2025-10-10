@@ -110,36 +110,36 @@ func (s *Server) Listen() {
 	connCh := make(chan net.Conn)
 	errCh := make(chan error)
 
-	for {
-		// 1. Check the exit condition
-		s.mutExit.RLock()
-		test := s.exitNode
-		s.mutExit.RUnlock()
-		if test {
-			break
-		}
-
-		// 2. Listen on the unix socket
-		go func() {
+	// 1. Goroutine dedicated to accepting connections
+	go func() {
+		for {
 			conn, err := ln.Accept()
 			if err != nil {
 				errCh <- err
-				return
+				return // exit goroutine when listener is closed
 			}
 			connCh <- conn
-		}()
+		}
+	}()
 
-		// 3. Wait 1 second for an interaction on one of the channels before going back to the loop
+	// 2. Main loop
+	for {
+		s.mutExit.RLock()
+		exit := s.exitNode
+		s.mutExit.RUnlock()
+		if exit {
+			ln.Close() // this will unblock ln.Accept() above
+			break
+		}
+
 		select {
 		case conn := <-connCh:
 			go s.handleConnection(conn)
 		case err := <-errCh:
-			//TODO
 			fmt.Println("Error on connection:", err)
 		case <-time.After(1 * time.Second):
-
+			// periodic tick — could be used to check conditions, etc.
 		}
-
 	}
 
 	node.Shutdown()
@@ -171,20 +171,18 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.node.Forget(splitRequest[1])
 				reply(conn, response)
 			case "get":
-				// TODO: SEND BACK CONTACT
 				if !s.node.IsValidKademliaID(splitRequest[1]) {
 					reply(conn, "Invalid key")
 					continue
 				}
 				var response *string
 				_, response = s.node.LookupValue(splitRequest[1])
-				if response != nil {
+				if response != nil && *response != "" {
 					reply(conn, *response)
 				} else {
 					reply(conn, "Value not found")
 				}
 			case "put":
-				// TODO: CHANGE IF VALUE NOT STORED WELL
 				var key string
 				var result bool
 				key, result = s.node.IterativeStore(splitRequest[1], true)
@@ -193,8 +191,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 				} else {
 					reply(conn, "Value not stored")
 				}
-				// key, _ = s.node.IterativeStore(splitRequest[1])
-				// reply(conn, key)
 			case "routing":
 				response := s.node.RoutingTable.String()
 
@@ -209,11 +205,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 	}
 
-	if err := reader.Err(); err != nil {
-		fmt.Println("Connection closed with error:", err)
-	} else {
-		fmt.Println("Client disconnected.")
-	}
+	fmt.Println("Client disconnected.")
 }
 
 // Sends a reply

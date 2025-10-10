@@ -152,12 +152,18 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 	return candidates.GetContacts(kSize), nil
 }
 
-func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (string, bool) {
+func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (returnKey string, isValid bool) {
 	//1. Hash the value to get the key
 	dataToHash := []byte(value)
 	hash := sha1.Sum(dataToHash)
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
 
+	defer func() {
+		if r := recover(); r != nil {
+			returnKey = ""
+			isValid = false
+		}
+	}()
 	kademlia.DataStore.Put(key.String(), value, true, true)
 
 	//2. Find the k closest nodes to the key
@@ -210,7 +216,9 @@ func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (s
 	}
 
 	//4. If a node does not respond, find a replacement node and send STORE to it // Optional
-	return key.String(), successCount > 0
+	returnKey = key.String()
+	isValid = successCount > 0
+	return
 }
 
 func (kademlia *Kademlia) IterativeRefresh(key *KademliaID, kSize int) {

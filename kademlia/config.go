@@ -89,3 +89,15 @@ var (
 	tRepublish = gettRepublish()
 	tExpire    = gettExpire()
 )
+
+func ReloadConfig() {
+	ALPHA = getAlpha()
+	BETA = getBeta()
+	K = getK()
+	TTL = getTTL()
+	tReplicate = gettReplicate()
+	tRepublish = gettRepublish()
+	tExpire = gettExpire()
+
+	log.Println("Configuration reloaded from environment variables.")
+}

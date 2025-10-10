@@ -1,9 +1,12 @@
 package server
 
 import (
+	"bytes"
+	"d7024e/kademlia"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -128,7 +131,6 @@ func TestCreationTwoNodes(t *testing.T) {
 func TestViaBootstrapNode(t *testing.T) {
 	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc-%d.sock", time.Now().UnixNano()))
 	socketPath2 := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
-
 	ch := make(chan string, 1)
 	server1 := NewServer(socketPath, "", 8004)
 	server1.restPort = 8204
@@ -190,4 +192,270 @@ func TestNonExistingBootstrap(t *testing.T) {
 		SendMessage(ConnectToServer(socketPath), "exit")
 		t.Fail()
 	}
+}
+
+func TestForget(t *testing.T) {
+	os.Setenv("TTL", "3")
+	os.Setenv("tRepublish", "3")
+
+	kademlia.ReloadConfig()
+
+	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc-%d.sock", time.Now().UnixNano()))
+	socketPath2 := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
+
+	fmt.Println("Initialising first server")
+	server := NewServer(socketPath, "", 8007)
+	server.restPort = 8207
+
+	go func() {
+		server.Listen()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	fmt.Println("Initialising second server")
+
+	server2 := NewServer(socketPath2, "0.0.0.0:8007", 8008)
+	server2.restPort = 8208
+
+	go func() {
+		server2.Listen()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	conn := ConnectToServer(socketPath2)
+
+	SendMessage(conn, "put"+SEPARATING_STRING+"Hello World")
+	key := ListenOneLine(conn)
+
+	time.Sleep(100 * time.Millisecond)
+
+	SendMessage(conn, "forget"+SEPARATING_STRING+key)
+
+	time.Sleep(100 * time.Millisecond)
+
+	ListenOneLine(conn)
+
+	time.Sleep(6 * time.Second)
+
+	SendMessage(conn, "get"+SEPARATING_STRING+key)
+	response := ListenOneLine(conn)
+	slices := strings.Split(response, "")
+	fmt.Println(slices)
+
+	if response != "Value not found" {
+		t.Error("After forgetting a value and waiting for TTL to expire, the value should not be found")
+	}
+
+	SendMessage(ConnectToServer(socketPath), "exit")
+	SendMessage(ConnectToServer(socketPath2), "exit")
+
+	os.Unsetenv("TTL")
+	os.Unsetenv("tRepublish")
+
+	kademlia.ReloadConfig()
+
+}
+
+func TestInvalidKey(t *testing.T) {
+
+	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc-%d.sock", time.Now().UnixNano()))
+
+	server := NewServer(socketPath, "", 8009)
+	server.restPort = 8209
+
+	go func() {
+		server.Listen()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	conn := ConnectToServer(socketPath)
+
+	SendMessage(conn, "get"+SEPARATING_STRING+"invalidkey")
+
+	response := ListenOneLine(conn)
+
+	if response != "Invalid key" {
+		t.Error("When getting a value with an invalid key, the response should be 'Invalid key'")
+	}
+
+	SendMessage(ConnectToServer(socketPath), "exit")
+
+}
+
+func TestPutGet(t *testing.T) {
+
+	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc-%d.sock", time.Now().UnixNano()))
+
+	server := NewServer(socketPath, "", 8010)
+	server.restPort = 8210
+
+	go func() {
+		server.Listen()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	socketPath2 := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
+
+	server2 := NewServer(socketPath2, "0.0.0.0:8010", 8011)
+	server2.restPort = 8211
+
+	go func() {
+		server2.Listen()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	conn := ConnectToServer(socketPath2)
+
+	SendMessage(conn, "put"+SEPARATING_STRING+"Hello World")
+	key := ListenOneLine(conn)
+
+	SendMessage(conn, "get"+SEPARATING_STRING+key)
+
+	response := ListenOneLine(conn)
+
+	if response != "Hello World" {
+		t.Error("When putting and getting a value, the response should be the original value")
+	}
+
+	SendMessage(ConnectToServer(socketPath), "exit")
+	SendMessage(ConnectToServer(socketPath2), "exit")
+
+}
+
+func TestInvalidPut(t *testing.T) {
+
+	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc-%d.sock", time.Now().UnixNano()))
+
+	server := NewServer(socketPath, "", 8012)
+	server.restPort = 8212
+
+	go func() {
+		server.Listen()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	conn := ConnectToServer(socketPath)
+
+	SendMessage(conn, "put"+SEPARATING_STRING+"")
+
+	response := ListenOneLine(conn)
+
+	if response != "Value not stored" {
+		t.Error("When putting an invalid value, the response should be 'Value not stored'")
+	}
+
+	SendMessage(ConnectToServer(socketPath), "exit")
+
+}
+
+func TestRouting(t *testing.T) {
+
+	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc-%d.sock", time.Now().UnixNano()))
+
+	server := NewServer(socketPath, "", 8013)
+	server.restPort = 8213
+
+	go func() {
+		server.Listen()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	socketPath2 := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
+
+	server2 := NewServer(socketPath2, "0.0.0.0:8013", 8014)
+	server2.restPort = 8214
+
+	go func() {
+		server2.Listen()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	conn := ConnectToServer(socketPath2)
+
+	SendMessage(conn, "routing")
+
+	response, err := ListenUntilEnd(conn)
+
+	fmt.Println("---------------------------------")
+	fmt.Println("Routing table:", response)
+
+	if err != nil {
+		t.Error("There should be no error when getting the routing table")
+	}
+
+	if strings.Count(response, "contact") != 1 {
+		t.Error("The response should contain one contact")
+	}
+
+	if strings.Count(response, "Bucket") != 1 {
+		t.Error("The response should contain one bucket")
+	}
+
+	SendMessage(ConnectToServer(socketPath), "exit")
+	SendMessage(ConnectToServer(socketPath2), "exit")
+
+}
+
+func TestStore(t *testing.T) {
+
+	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc-%d.sock", time.Now().UnixNano()))
+
+	server := NewServer(socketPath, "", 8015)
+	server.restPort = 8215
+
+	go func() {
+		server.Listen()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	socketPath2 := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
+
+	server2 := NewServer(socketPath2, "0.0.0.0:8015", 8016)
+	server2.restPort = 8216
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	go func() {
+		server2.Listen()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+
+	conn := ConnectToServer(socketPath)
+
+	SendMessage(conn, "store")
+
+	time.Sleep(100 * time.Millisecond)
+
+	// Capture the output
+	w.Close()
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+	fmt.Println("Routing table:", output)
+
+	if strings.Count(output, "contact") != 1 {
+		t.Error("The response should contain one contact")
+	}
+
+	if strings.Count(output, "Bucket") != 1 {
+		t.Error("The response should contain one bucket")
+	}
+
+	SendMessage(ConnectToServer(socketPath), "exit")
+	SendMessage(ConnectToServer(socketPath2), "exit")
+
 }
