@@ -10,10 +10,14 @@ import (
 
 func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 	// Update the sender's address in the Contact
+	// kademlia.keyMutex.Lock()
+	// defer kademlia.keyMutex.Unlock()
 	if addr != nil {
 		msg.From.Address = addr.String()
 	}
+
 	kademlia.RoutingTable.AddContact(msg.From)
+	// kademlia.keyMutex.Unlock()
 
 	// fmt.Printf("Received message of type %s from %s\n", msg.Type, msg.From.Address)
 	// fmt.Printf("Message details: %+v\n", msg)

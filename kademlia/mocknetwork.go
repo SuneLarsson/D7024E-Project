@@ -15,6 +15,7 @@ type SimulatedNetwork struct {
 	mu       sync.Mutex
 	dropRate float64    // Packet drop probability (0.0 to 1.0)
 	rand     *rand.Rand // Random source for packet dropping
+	seed     int64
 }
 
 // NewSimulatedNetwork creates a new network simulation with a configurable packet drop rate.
@@ -24,6 +25,7 @@ func NewSimulatedNetwork(dropRate float64, seed int64) *SimulatedNetwork {
 		nodes:    make(map[string]*Kademlia),
 		dropRate: dropRate,
 		rand:     rand.New(rand.NewSource(seed)),
+		seed:     seed,
 	}
 }
 
@@ -43,17 +45,17 @@ type MockNetworkAdapter struct {
 // SendMessage finds the target node in the simulation and calls its handler directly.
 func (m *MockNetworkAdapter) SendMessage(addr string, msg *Message) error {
 	m.sim.mu.Lock()
+	defer m.sim.mu.Unlock()
 
 	// Simulate packet drop
 	if m.sim.rand.Float64() < m.sim.dropRate {
-		m.sim.mu.Unlock()
+
 		// Packet is "dropped". We return nil to simulate the "fire and forget"
 		// nature of UDP, where the sender doesn't know about the drop.
 		return nil
 	}
 
 	targetNode, found := m.sim.nodes[addr]
-	m.sim.mu.Unlock()
 
 	if !found {
 		return errors.New("node not found in simulation: " + addr)

@@ -54,6 +54,7 @@ func (network *Network) Listen() error {
 }
 
 func (network *Network) SendMessage(addr string, msg *Message) error {
+
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return err
