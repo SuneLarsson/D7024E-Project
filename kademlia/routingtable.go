@@ -3,6 +3,7 @@ package kademlia
 import (
 	"fmt"
 	"strings"
+	"sync"
 )
 
 const bucketSize = 20
@@ -10,26 +11,22 @@ const bucketSize = 20
 // RoutingTable definition
 // keeps a refrence contact of me and an array of buckets
 type RoutingTable struct {
-	me      Contact
-	buckets [IDLength * 8]*bucket
-
-	ops chan RoutingRequest
-}
-type RoutingNode struct {
-	prefix string
-	bucket *bucket
-	child  []*RoutingNode
+	me           Contact
+	buckets      []*bucket
+	bucketsMutex sync.RWMutex
+	ops          chan RoutingRequest
 }
 
 // NewRoutingTable returns a new instance of a RoutingTable
 func NewRoutingTable(me Contact) *RoutingTable {
 	routingTable := &RoutingTable{
-		me:  me,
-		ops: make(chan RoutingRequest),
+		me:      me,
+		buckets: make([]*bucket, 0, 160),
+		ops:     make(chan RoutingRequest),
 	}
-	for i := 0; i < IDLength*8; i++ {
-		routingTable.buckets[i] = newBucket()
-	}
+	routingTable.bucketsMutex.Lock()
+	routingTable.buckets = append(routingTable.buckets, newBucket("", 0))
+	routingTable.bucketsMutex.Unlock()
 	// routingTable.me = me
 	// return routingTable
 	go routingTable.run()
@@ -41,7 +38,15 @@ func (routingTable *RoutingTable) run() {
 		switch req.requestType {
 		case AddContact:
 			idx := routingTable.getBucketIndex(req.contact.ID)
-			routingTable.buckets[idx].AddContact(req.contact)
+			canAdd, canSplit := routingTable.buckets[idx].CanAddContact(req.contact, routingTable.me)
+
+			if !canAdd && canSplit {
+				canAdd, idx = routingTable.splitBucket(idx, req.contact)
+			}
+
+			if canAdd {
+				routingTable.buckets[idx].AddContact(req.contact)
+			}
 			if req.responseCh != nil {
 				req.responseCh <- true
 			}
@@ -51,6 +56,39 @@ func (routingTable *RoutingTable) run() {
 			req.responseCh <- contacts
 		}
 	}
+}
+
+// splitBucket splits the bucket at the index to try to accomodate for the contact
+func (routingTable *RoutingTable) splitBucket(idx int, contact Contact) (bool, int) {
+	var canAdd bool = false
+	var canSplit bool = true
+	var bucketsToAdd []*bucket
+	indexStart := idx
+	routingTable.bucketsMutex.RLock()
+	currentBucket := routingTable.buckets[indexStart]
+	for !canAdd && canSplit {
+		bucket1, bucket0 := currentBucket.SplitBucket()
+		bucketsToAdd = append(bucketsToAdd, bucket1, bucket0)
+
+		canAdd, canSplit = bucket1.CanAddContact(contact, routingTable.me)
+
+		if !canAdd {
+			canAdd, canSplit = bucket0.CanAddContact(contact, routingTable.me)
+			idx = indexStart + len(bucketsToAdd) - 1
+		} else {
+			idx = indexStart + len(bucketsToAdd) - 2
+		}
+
+	}
+	routingTable.bucketsMutex.RUnlock()
+	// If no new buckets are added, then we don't change the current routingtable
+	if canAdd {
+		routingTable.bucketsMutex.Lock()
+		routingTable.buckets[indexStart] = bucketsToAdd[0]
+		routingTable.buckets = append(routingTable.buckets[:indexStart+1], append(bucketsToAdd[1:], routingTable.buckets[indexStart+1:]...)...)
+		routingTable.bucketsMutex.Unlock()
+	}
+	return canAdd, idx
 }
 
 // AddContact add a new contact to the correct Bucket
@@ -86,12 +124,12 @@ func (routingTable *RoutingTable) findClosestContactsInternal(target *KademliaID
 
 	candidates.Append(bucket.GetContactAndCalcDistance(target))
 
-	for i := 1; (bucketIndex-i >= 0 || bucketIndex+i < IDLength*8) && candidates.Len() < count; i++ {
+	for i := 1; (bucketIndex-i >= 0 || bucketIndex+i < len(routingTable.buckets)) && candidates.Len() < count; i++ {
 		if bucketIndex-i >= 0 {
 			bucket = routingTable.buckets[bucketIndex-i]
 			candidates.Append(bucket.GetContactAndCalcDistance(target))
 		}
-		if bucketIndex+i < IDLength*8 {
+		if bucketIndex+i < len(routingTable.buckets) {
 			bucket = routingTable.buckets[bucketIndex+i]
 			candidates.Append(bucket.GetContactAndCalcDistance(target))
 		}
@@ -108,16 +146,23 @@ func (routingTable *RoutingTable) findClosestContactsInternal(target *KademliaID
 
 // getBucketIndex get the correct Bucket index for the KademliaID
 func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
-	distance := id.CalcDistance(routingTable.me.ID)
-	for i := 0; i < IDLength; i++ {
-		for j := 0; j < 8; j++ {
-			if (distance[i]>>uint8(7-j))&0x1 != 0 {
-				return i*8 + j
+	/*
+		distance := id.CalcDistance(routingTable.me.ID)
+		for i := 0; i < IDLength; i++ {
+			for j := 0; j < 8; j++ {
+				if (distance[i]>>uint8(7-j))&0x1 != 0 {
+					return i*8 + j
+				}
 			}
+		}*/
+	for i := 0; i < len(routingTable.buckets); i++ {
+		bucket := routingTable.buckets[i]
+		if bucket.ContainsID(id) {
+			return i
 		}
 	}
 
-	return IDLength*8 - 1
+	return len(routingTable.buckets) - 1
 }
 
 func (rt *RoutingTable) String() string {
@@ -134,43 +179,28 @@ func (rt *RoutingTable) String() string {
 	return result
 }
 
-func (node *RoutingNode) PrintTree(indent string, isTail bool) string {
+func (routingTable *RoutingTable) PrintTree() string {
 	var result strings.Builder
-
 	branch := "├── "
-	if isTail {
-		branch = "└── "
-	}
+	tail := "└── "
+	basicIndent := "    "
 
-	if node.prefix == "" {
-		result.WriteString(fmt.Sprintf("[Root]\n"))
-	} else {
-		result.WriteString(fmt.Sprintf("%s%s%s*\n", indent, branch, node.prefix))
-	}
-	if node.bucket != nil {
-		if node.bucket.Len() == 0 {
-			result.WriteString(fmt.Sprintf("%s    <empty>\n", indent))
+	result.WriteString("[Root]\n")
+
+	for _, bucket := range routingTable.buckets {
+		result.WriteString(basicIndent + branch + " " + bucket.prefix + "*\n")
+
+		if bucket.list.Len() == 0 {
+			result.WriteString(basicIndent + basicIndent + "<empty>\n")
 		} else {
-			for e := node.bucket.list.Front(); e != nil; e = e.Next() {
-				contact := e.Value.(Contact)
-				result.WriteString(fmt.Sprintf("%s    └── %s\n", indent, contact.String()))
-
+			for e := bucket.list.Front(); e != nil; e = e.Next() {
+				nodeID := e.Value.(Contact).ID.String()
+				name := e.Value.(Contact).Address
+				result.WriteString(basicIndent + basicIndent + tail + "contact(\"" + nodeID + "\", \"" + name + "\")\n")
 			}
-
 		}
-		return result.String()
-	}
-	newIndent := indent
-	if isTail {
-		newIndent += "    "
-	} else {
-		newIndent += "│   "
-	}
-	for i, child := range node.child {
-		isLast := (i == len(node.child)-1)
-		result.WriteString(child.PrintTree(newIndent, isLast))
 
 	}
+
 	return result.String()
-
 }

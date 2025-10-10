@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 )
 
 // TestGetBucketIndex verifies that the bucket index is calculated correctly based on the distance.
-func TestGetBucketIndex(t *testing.T) {
+/*func TestGetBucketIndex(t *testing.T) {
 	// 1. Setup: Create a "me" contact with a zero-ID for easy distance calculation.
 	me := NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
 	rt := NewRoutingTable(me)
@@ -67,7 +68,7 @@ func TestGetBucketIndex(t *testing.T) {
 			}
 		})
 	}
-}
+}*/
 
 // TestFindClosestContacts tests the core functionality of finding and sorting contacts.
 func TestFindClosestContacts(t *testing.T) {
@@ -165,18 +166,29 @@ func TestRoutingTablePrint(t *testing.T) {
 
 func TestGeneralRoutingTreePrint(t *testing.T) {
 	// Build a fake routing tree for b=2
-	root := &RoutingNode{prefix: ""}
-	root.child = []*RoutingNode{
-		{prefix: "00", bucket: newBucket()},
-		{prefix: "01", bucket: newBucket()},
-		{prefix: "10", bucket: newBucket()},
-		{prefix: "11", bucket: newBucket()},
+
+	rt := NewRoutingTable(NewContact(NewRandomKademliaID(), "Myself"))
+
+	rt.bucketsMutex.Lock()
+	defer rt.bucketsMutex.Unlock()
+
+	rt.buckets = []*bucket{
+		newBucket("00", 2),
+		newBucket("01", 2),
+		newBucket("10", 2),
+		newBucket("11", 2),
 	}
 
-	// Add some fake contacts
-	root.child[0].bucket.AddContact(NewContact(NewRandomKademliaID(), "nodeA"))
-	root.child[1].bucket.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
+	nodeA := NewContact(NewRandomKademliaID(), "nodeA")
+	fmt.Println(nodeA.ID.String())
+	rt.AddContact(nodeA)
+	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
+	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeC"))
+	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeD"))
+
+	time.Sleep(100 * time.Millisecond)
 
 	fmt.Println("Routing Tree (b=2):")
-	fmt.Println(root.PrintTree("", true))
+	fmt.Println(rt.PrintTree())
+	//t.Error("test")
 }

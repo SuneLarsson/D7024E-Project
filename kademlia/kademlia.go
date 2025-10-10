@@ -129,7 +129,7 @@ func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 	// neighbor
 	closest := kademlia.RoutingTable.FindClosestContacts(kademlia.Self.ID, 1)
 	bucketIndex := kademlia.RoutingTable.getBucketIndex(closest[0].ID)
-	for i := bucketIndex + 1; i < IDLength*8; i++ {
+	for i := bucketIndex + 1; i < len(kademlia.RoutingTable.buckets); i++ {
 		kademlia.RefreshBucket(i)
 	}
 }

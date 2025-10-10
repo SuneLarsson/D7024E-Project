@@ -1,7 +1,9 @@
 package kademlia
 
 import (
+	"encoding/hex"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -122,5 +124,28 @@ func TestKademliaID_String(t *testing.T) {
 
 	if !strings.EqualFold(hexStr, resultStr) {
 		t.Errorf("String() conversion failed. Got '%s', expected '%s'", resultStr, hexStr)
+	}
+}
+
+// TestKademliaID_BinaryString verifies that the ID is correctly converted to a binary string
+func TestKademliaID_BinaryString(t *testing.T) {
+	binStr := "1010000110110010110000111101010011100101111101100000011100011000001010010011101001001011010111000110110101111110100011111001000000010010001101000101011001111000"
+	bytes := make([]byte, len(binStr)/8)
+	for i := 0; i < len(binStr); i += 8 {
+		byteStr := binStr[i : i+8]
+		val, err := strconv.ParseUint(byteStr, 2, 8)
+		if err != nil {
+			t.Error("An error happened during the conversion from binary to hexadecimal")
+		}
+		bytes[i/8] = byte(val)
+	}
+
+	// Encode bytes to hex
+	hexStr := hex.EncodeToString(bytes)
+	id := NewKademliaID(hexStr)
+	resultStr := id.BinaryString()
+
+	if !strings.EqualFold(binStr, resultStr) {
+		t.Errorf("BinaryString() conversion failed. Got \n'%s', \nexpected \n'%s'", resultStr, binStr)
 	}
 }
