@@ -22,7 +22,7 @@ func TestGoodBehaviour(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
-	server2 := server.NewServer(socketPath, "0.0.0.0:8000", 8001)
+	server2 := server.NewServer(socketPath, "127.0.0.1:8000", 8001)
 	server2.SetRestPort(8100)
 	go func() {
 		server2.Listen()

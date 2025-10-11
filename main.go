@@ -15,7 +15,7 @@ func main() {
 
 	fmt.Printf("Alpha = %s", os.Getenv("ALPHA"))
 	// TODO: REMOVE WHEN KADEMLIA IS LISTENING
-	serv := server.NewServer(server.DEFAULT_SOCKET, bootstrapAddress, 8000)
+	serv := server.NewServer(server.Default_socket, bootstrapAddress, 8000)
 	serv.Listen()
 
 }
