@@ -22,7 +22,7 @@ var forgetCmd = &cobra.Command{
 }
 
 func forget(arg string) string {
-	conn := server.ConnectToServer(server.DEFAULT_SOCKET)
+	conn := server.ConnectToServer(server.Default_socket)
 	defer conn.Close()
 	server.SendMessage(conn, "forget"+server.SEPARATING_STRING+arg)
 	response := server.ListenOneLine(conn)

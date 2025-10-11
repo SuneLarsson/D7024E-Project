@@ -23,7 +23,7 @@ var routingCmd = &cobra.Command{
 }
 
 func routing() string {
-	conn := server.ConnectToServer(server.DEFAULT_SOCKET)
+	conn := server.ConnectToServer(server.Default_socket)
 	defer conn.Close()
 
 	server.SendMessage(conn, "routing")

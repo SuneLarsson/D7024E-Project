@@ -20,7 +20,7 @@ var exitCmd = &cobra.Command{
 }
 
 func exit() {
-	conn := server.ConnectToServer(server.DEFAULT_SOCKET)
+	conn := server.ConnectToServer(server.Default_socket)
 	defer conn.Close()
 	server.SendMessage(conn, "exit")
 }

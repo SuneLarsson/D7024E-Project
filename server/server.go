@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,7 +15,9 @@ import (
 )
 
 const SEPARATING_STRING string = ":"
-const DEFAULT_SOCKET string = "/tmp/svc.sock"
+
+var Default_socket string = filepath.Join(os.TempDir(), "svc_app.sock")
+
 const ERR_NOMESSAGE string = "Message should at least contain type of message"
 const ERR_INVALIDSOCKET string = "Error listening on socket"
 const ERR_NODECREATIONFAILURE string = "Error creating kademlia node"
@@ -60,8 +63,10 @@ func (s *Server) Listen() {
 	os.Remove(s.socketPath)
 
 	// s.storage = storage.NewStorage()
+	var ln net.Listener
+	var err error
 
-	ln, err := net.Listen("unix", s.socketPath)
+	ln, err = net.Listen("unix", s.socketPath)
 	if err != nil {
 		//fmt.Println(err)
 		panic(ERR_INVALIDSOCKET)

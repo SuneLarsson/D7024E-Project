@@ -12,7 +12,7 @@ import (
 
 func TestGoodBehaviour(t *testing.T) {
 
-	myServer := server.NewServer(server.DEFAULT_SOCKET, "", 8000)
+	myServer := server.NewServer(server.Default_socket, "", 8000)
 	exitCh := make(chan string, 1)
 	go func() {
 		myServer.Listen()
@@ -63,8 +63,8 @@ func TestGoodBehaviour(t *testing.T) {
 	exit()
 
 	select {
-	case <- exitCh:
-	case <- time.After(2 * time.Second):
+	case <-exitCh:
+	case <-time.After(2 * time.Second):
 		t.Error("TimeOut of exiting the server")
 	}
 

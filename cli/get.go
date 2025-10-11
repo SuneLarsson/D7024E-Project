@@ -22,7 +22,7 @@ var getCmd = &cobra.Command{
 }
 
 func get(arg string) string {
-	conn := server.ConnectToServer(server.DEFAULT_SOCKET)
+	conn := server.ConnectToServer(server.Default_socket)
 	defer conn.Close()
 	server.SendMessage(conn, "get"+server.SEPARATING_STRING+arg)
 	response := server.ListenOneLine(conn)
