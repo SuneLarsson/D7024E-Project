@@ -60,8 +60,8 @@ func (routingTable *RoutingTable) run() {
 
 // splitBucket splits the bucket at the index to try to accomodate for the contact
 func (routingTable *RoutingTable) splitBucket(idx int, contact Contact) (bool, int) {
-	var canAdd bool = false
-	var canSplit bool = true
+	canAdd := false
+	canSplit := true
 	var bucketsToAdd []*bucket
 	indexStart := idx
 	routingTable.bucketsMutex.RLock()
@@ -72,11 +72,13 @@ func (routingTable *RoutingTable) splitBucket(idx int, contact Contact) (bool, i
 
 		canAdd, canSplit = bucket1.CanAddContact(contact, routingTable.me)
 
-		if !canAdd {
+		if !canAdd && !canSplit {
 			canAdd, canSplit = bucket0.CanAddContact(contact, routingTable.me)
+			currentBucket = bucket0
 			idx = indexStart + len(bucketsToAdd) - 1
 		} else {
 			idx = indexStart + len(bucketsToAdd) - 2
+			currentBucket = bucket1
 		}
 
 	}
@@ -170,10 +172,12 @@ func (rt *RoutingTable) String() string {
 	for i, bucket := range rt.buckets {
 		if bucket.Len() > 0 {
 			result += fmt.Sprintf("Bucket %d:\n", i)
+			bucket.mu.Lock()
 			for e := bucket.list.Front(); e != nil; e = e.Next() {
 				c := e.Value.(Contact)
 				result += fmt.Sprintf("  %s\n", c.String())
 			}
+			bucket.mu.Unlock()
 		}
 	}
 	return result
@@ -190,6 +194,7 @@ func (routingTable *RoutingTable) PrintTree() string {
 	for _, bucket := range routingTable.buckets {
 		result.WriteString(basicIndent + branch + " " + bucket.prefix + "*\n")
 
+		bucket.mu.Lock()
 		if bucket.list.Len() == 0 {
 			result.WriteString(basicIndent + basicIndent + "<empty>\n")
 		} else {
@@ -199,6 +204,7 @@ func (routingTable *RoutingTable) PrintTree() string {
 				result.WriteString(basicIndent + basicIndent + tail + "contact(\"" + nodeID + "\", \"" + name + "\")\n")
 			}
 		}
+		bucket.mu.Unlock()
 
 	}
 

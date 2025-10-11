@@ -75,16 +75,17 @@ func (bucket *bucket) CanAddContact(contact Contact, me Contact) (bool, bool) {
 			canAdd = true
 		}
 
-		if !canAdd && (bucket.ContainsID(me.ID) || bucket.depth%BETA != 0) {
+		if !canAdd && (bucket.ContainsID(me.ID) || bucket.depth%bucket.b != 0) {
 			canSplit = true
 		}
 	}
-
 	return canAdd, canSplit
 }
 
 // ContainsID checks if the KademliaID has the necessary prefix for the bucket
 func (bucket *bucket) ContainsID(id *KademliaID) bool {
+	bucket.mu.Lock()
+	defer bucket.mu.Unlock()
 	contains := false
 	if len(id.BinaryString()) >= bucket.depth && id.BinaryString()[:bucket.depth] == bucket.prefix {
 		contains = true
@@ -94,15 +95,15 @@ func (bucket *bucket) ContainsID(id *KademliaID) bool {
 
 // SplitBucket splits a bucket into two different buckets by creating a new one and returning both
 func (bucket *bucket) SplitBucket() (*bucket, *bucket) {
+	bucket.mu.Lock()
+	defer bucket.mu.Unlock()
 	bucket1 := newBucket(bucket.prefix+"1", bucket.depth+1)
 	bucket1.b = bucket.b
 	bucket0 := newBucket(bucket.prefix+"0", bucket.depth+1)
 	bucket0.b = bucket.b
-	bucket.prefix = bucket.prefix + "1"
 	bucket.depth++
 	for e := bucket.list.Back(); e != nil; e = e.Prev() {
 		nodeID := e.Value.(Contact).ID
-		
 		if bucket1.ContainsID(nodeID) {
 			bucket1.list.PushFront(e.Value.(Contact))
 		} else {
