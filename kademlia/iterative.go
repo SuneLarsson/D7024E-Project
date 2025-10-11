@@ -191,7 +191,11 @@ func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (r
 	// Otherwise, print a failure message
 	if successCount > 0 && originalUploader {
 		log.Printf("Successfully stored value on %d nodes\n", successCount)
+
+		kademlia.wg.Add(1)
+
 		go func(key *KademliaID) {
+			defer kademlia.wg.Done()
 			ticker := time.NewTicker(time.Duration(tRepublish))
 			defer ticker.Stop()
 			forgetChan := make(chan string)
@@ -205,7 +209,10 @@ func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (r
 					kademlia.IterativeRefresh(key, 3)
 				case <-forgetChan:
 					keepGoing = false
+				case <-kademlia.done:
+					keepGoing = false
 				}
+
 			}
 			fmt.Println("No more refreshing the value that has key", key.String())
 		}(key)

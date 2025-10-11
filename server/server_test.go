@@ -145,7 +145,7 @@ func TestViaBootstrapNode(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	server2 := NewServer(socketPath2, "0.0.0.0:8004", 8005)
+	server2 := NewServer(socketPath2, "127.0.0.1:8004", 8005)
 	server2.restPort = 8205
 	go func() {
 		defer func() {
@@ -172,7 +172,7 @@ func TestNonExistingBootstrap(t *testing.T) {
 	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc-%d.sock", time.Now().UnixNano()))
 
 	ch := make(chan string, 1)
-	server := NewServer(socketPath, "0.0.0.0:8100", 8006)
+	server := NewServer(socketPath, "127.0.0.1:8100", 8006)
 	server.restPort = 8206
 	go func() {
 		defer func() {
@@ -215,7 +215,7 @@ func TestForget(t *testing.T) {
 
 	fmt.Println("Initialising second server")
 
-	server2 := NewServer(socketPath2, "0.0.0.0:8007", 8008)
+	server2 := NewServer(socketPath2, "127.0.0.1:8007", 8008)
 	server2.restPort = 8208
 
 	go func() {
@@ -300,7 +300,7 @@ func TestPutGet(t *testing.T) {
 
 	socketPath2 := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
 
-	server2 := NewServer(socketPath2, "0.0.0.0:8010", 8011)
+	server2 := NewServer(socketPath2, "127.0.0.1:8010", 8011)
 	server2.restPort = 8211
 
 	go func() {
@@ -369,7 +369,7 @@ func TestRouting(t *testing.T) {
 
 	socketPath2 := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
 
-	server2 := NewServer(socketPath2, "0.0.0.0:8013", 8014)
+	server2 := NewServer(socketPath2, "127.0.0.1:8013", 8014)
 	server2.restPort = 8214
 
 	go func() {
@@ -419,7 +419,7 @@ func TestStore(t *testing.T) {
 
 	socketPath2 := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
 
-	server2 := NewServer(socketPath2, "0.0.0.0:8015", 8016)
+	server2 := NewServer(socketPath2, "127.0.0.1:8015", 8016)
 	server2.restPort = 8216
 
 	old := os.Stdout

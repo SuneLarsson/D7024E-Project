@@ -28,6 +28,8 @@ type Kademlia struct {
 	beta         int
 	k            int
 	ttl          time.Duration
+	done         chan struct{}
+	wg           sync.WaitGroup
 }
 
 type MapRequest struct {
@@ -81,6 +83,7 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 		beta:         BETA,
 		k:            K,
 		ttl:          ttl,
+		done:         make(chan struct{}),
 		// *storage.NewStorageWithTTL(60 * time.Second),
 	}
 
@@ -88,6 +91,7 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 
 	kademlia.Network = network
 
+	kademlia.wg.Add(3)
 	go kademlia.Network.Listen()
 	go kademlia.managePendingRequests()
 	go kademlia.RunPeriodicCleanup(5 * time.Second)
@@ -97,19 +101,44 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 }
 
 func (k *Kademlia) managePendingRequests() {
+	defer k.wg.Done()
 	pending := make(map[string]chan Message)
 
-	for req := range k.mapManagerCh {
-		if req.register {
-			pending[req.rpcID.String()] = req.responseChan
-		} else {
-			if ch, ok := pending[req.rpcID.String()]; ok {
-				if !req.responseMsg.RPCID.IsZero() {
-					ch <- req.responseMsg
-				}
-				delete(pending, req.rpcID.String())
+	for {
+		select {
+		case req, ok := <-k.mapManagerCh:
+			if !ok {
+				// Channel closed, exit the goroutine
+				return
 			}
+			if req.register {
+				pending[req.rpcID.String()] = req.responseChan
+			} else {
+				if ch, ok := pending[req.rpcID.String()]; ok {
+					if !req.responseMsg.RPCID.IsZero() {
+						ch <- req.responseMsg
+					}
+					delete(pending, req.rpcID.String())
+				}
+			}
+		case <-k.done:
+			// Received shutdown signal, exit the goroutine
+			return
 		}
+
+		// for req := range k.mapManagerCh {
+		// 	if req.register {
+		// 		pending[req.rpcID.String()] = req.responseChan
+		// 	} else {
+		// 		if ch, ok := pending[req.rpcID.String()]; ok {
+		// 			if !req.responseMsg.RPCID.IsZero() {
+		// 				ch <- req.responseMsg
+		// 			}
+		// 			delete(pending, req.rpcID.String())
+		// 		}
+		// 	}
+
+		// }
 	}
 }
 
@@ -154,35 +183,72 @@ func getOutboundIP() (string, error) {
 }
 
 func (kademlia *Kademlia) RunPeriodicCleanup(interval time.Duration) {
-
+	defer kademlia.wg.Done()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 	for {
-		time.Sleep(interval)
-		kademlia.DataStore.Clean()
+		select {
+		case <-ticker.C:
+			kademlia.DataStore.Clean()
+		case <-kademlia.done:
+			return
+		}
 	}
+	// for {
+	// 	time.Sleep(interval)
+	// 	kademlia.DataStore.Clean()
+	// }
 }
 
 // PeriodicReplication implements the 1-hour replication rule.
 // It iterates over all data this node holds and re-stores it on the
 // k-closest nodes to ensure data persists even if nodes leave.
 func (kademlia *Kademlia) PeriodicReplication(interval time.Duration) {
+	defer kademlia.wg.Done()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		log.Println("Starting periodic replication cycle...")
-		keys := kademlia.DataStore.GetKeys()
-		for _, keyStr := range keys {
-			value, _, found := kademlia.DataStore.GetValueAndMetadataForReplication(keyStr)
-			if found {
-				go kademlia.IterativeStore(value, true)
+	for {
+		select {
+		case <-ticker.C:
+			log.Println("Starting periodic replication cycle...")
+			keys := kademlia.DataStore.GetKeys()
+			for _, keyStr := range keys {
+				value, _, found := kademlia.DataStore.GetValueAndMetadataForReplication(keyStr)
+				if found {
+					go kademlia.IterativeStore(value, true)
+				}
 			}
+		case <-kademlia.done:
+			// Shutdown signal received, exit.
+			return
 		}
 	}
+
+	// for range ticker.C {
+	// 	log.Println("Starting periodic replication cycle...")
+	// 	keys := kademlia.DataStore.GetKeys()
+	// 	for _, keyStr := range keys {
+	// 		value, _, found := kademlia.DataStore.GetValueAndMetadataForReplication(keyStr)
+	// 		if found {
+	// 			go kademlia.IterativeStore(value, true)
+	// 		}
+	// 	}
+	// }
 }
 
 // Shutdown gracefully
 func (kademlia *Kademlia) Shutdown() {
+
+	close(kademlia.done)
+	kademlia.wg.Wait()
+
+	if network, ok := kademlia.Network.(*Network); ok {
+		network.Shutdown()
+	}
+
 	close(kademlia.mapManagerCh)
+
 	if kademlia.httpServer != nil {
 		if err := kademlia.httpServer.Close(); err != nil {
 			log.Printf("Error shutting down HTTP server: %v", err)
