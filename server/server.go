@@ -50,6 +50,11 @@ func NewServer(sockPath string, bootstrapAddress string, port int) *Server {
 	}
 }
 
+// Changing the rest port (ONLY FOR TESTING PURPOSES)
+func (s *Server) SetRestPort(port int) {
+	s.restPort = port
+}
+
 // Starts begin listening for incoming messages
 func (s *Server) Listen() {
 	os.Remove(s.socketPath)

@@ -15,10 +15,12 @@ func (k *Kademlia) StartRESTServer(addr string) {
 	mux.HandleFunc("/objects/", k.handleObjectByHash)
 
 	log.Printf("Starting REST server at %s\n", addr)
+	k.httpMutex.Lock()
 	k.httpServer = &http.Server{
 		Addr:    addr,
 		Handler: mux,
 	}
+	k.httpMutex.Unlock()
 	// log.Fatal(k.httpMux.ListenAndServe())
 	if err := k.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Printf("HTTP server error: %v", err)

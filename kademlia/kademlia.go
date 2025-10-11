@@ -24,6 +24,7 @@ type Kademlia struct {
 	keyStore     map[string]chan string
 	keyMutex     sync.Mutex
 	httpServer   *http.Server
+	httpMutex    sync.Mutex
 	alpha        int
 	beta         int
 	k            int
@@ -249,9 +250,11 @@ func (kademlia *Kademlia) Shutdown() {
 
 	close(kademlia.mapManagerCh)
 
+	kademlia.httpMutex.Lock()
 	if kademlia.httpServer != nil {
 		if err := kademlia.httpServer.Close(); err != nil {
 			log.Printf("Error shutting down HTTP server: %v", err)
 		}
 	}
+	kademlia.httpMutex.Unlock()
 }

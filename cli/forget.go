@@ -16,10 +16,15 @@ var forgetCmd = &cobra.Command{
 	Short: "Forget a value",
 	Long:  "Forget a value",
 	Run: func(cmd *cobra.Command, args []string) {
-		conn := server.ConnectToServer(server.DEFAULT_SOCKET)
-		defer conn.Close()
-		server.SendMessage(conn, "forget"+server.SEPARATING_STRING+args[0])
-		response := server.ListenOneLine(conn)
+		response := forget(args[0])
 		fmt.Println(response)
 	},
+}
+
+func forget(arg string) string {
+	conn := server.ConnectToServer(server.DEFAULT_SOCKET)
+	defer conn.Close()
+	server.SendMessage(conn, "forget"+server.SEPARATING_STRING+arg)
+	response := server.ListenOneLine(conn)
+	return response
 }

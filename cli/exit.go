@@ -15,8 +15,12 @@ var exitCmd = &cobra.Command{
 	Short: "Terminate the node",
 	Long:  "Terminate the node",
 	Run: func(cmd *cobra.Command, args []string) {
-		conn := server.ConnectToServer(server.DEFAULT_SOCKET)
-		defer conn.Close()
-		server.SendMessage(conn, "exit")
+		exit()
 	},
+}
+
+func exit() {
+	conn := server.ConnectToServer(server.DEFAULT_SOCKET)
+	defer conn.Close()
+	server.SendMessage(conn, "exit")
 }
