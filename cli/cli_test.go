@@ -63,8 +63,8 @@ func TestGoodBehaviour(t *testing.T) {
 	exit()
 
 	select {
-	case <- exitCh:
-	case <- time.After(2 * time.Second):
+	case <-exitCh:
+	case <-time.After(2 * time.Second):
 		t.Error("TimeOut of exiting the server")
 	}
 

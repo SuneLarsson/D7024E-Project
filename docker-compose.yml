@@ -14,6 +14,9 @@ services:
       - BETA=${BETA}
       - K=${K}
       - TTL=${TTL}
+      - TREPLICATE=${TREPLICATE}
+      - TREPUBLISH=${TREPUBLISH}
+      - TEXPIRE=${TEXPIRE}
     hostname: bootstrap-node
   joining-nodes:
     image: kadlab:latest
@@ -38,6 +41,9 @@ services:
       - BETA=${BETA}
       - K=${K}
       - TTL=${TTL}
+      - TREPLICATE=${TREPLICATE}
+      - TREPUBLISH=${TREPUBLISH}
+      - TEXPIRE=${TEXPIRE}
     depends_on:
       - bootstrap-node
 

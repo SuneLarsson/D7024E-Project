@@ -96,7 +96,7 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 	go kademlia.Network.Listen()
 	go kademlia.managePendingRequests()
 	go kademlia.RunPeriodicCleanup(5 * time.Second)
-	go kademlia.PeriodicReplication(1 * time.Hour)
+	go kademlia.PeriodicReplication(time.Duration(tReplicate) * time.Hour)
 
 	return kademlia, nil
 }

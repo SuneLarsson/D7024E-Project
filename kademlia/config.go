@@ -48,7 +48,7 @@ func getTTL() int {
 }
 
 func gettReplicate() int {
-	tReplicateStr := os.Getenv("tReplicate")
+	tReplicateStr := os.Getenv("TREPLICATE")
 	tReplicate, err := strconv.Atoi(tReplicateStr)
 	if err != nil {
 		log.Printf("Error parsing tReplicate from environment, using default 3600: %v", err)
@@ -59,7 +59,7 @@ func gettReplicate() int {
 }
 
 func gettRepublish() int {
-	tRepublishStr := os.Getenv("tRepublish")
+	tRepublishStr := os.Getenv("TREPUBLISH")
 	tRepublish, err := strconv.Atoi(tRepublishStr)
 	if err != nil {
 		log.Printf("Error parsing tRepublish from environment, using default 86400: %v", err)
@@ -70,7 +70,7 @@ func gettRepublish() int {
 }
 
 func gettExpire() int {
-	tExpireStr := os.Getenv("tExpire")
+	tExpireStr := os.Getenv("TEXPIRE")
 	tExpire, err := strconv.Atoi(tExpireStr)
 	if err != nil {
 		log.Printf("Error parsing tExpire from environment, using default 3600: %v", err)
