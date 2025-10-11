@@ -119,7 +119,7 @@ func TestGetBucketIndex(t *testing.T) {
 		NewKademliaID("9800000000000000000000000000000000000000"), //10011...
 	}
 
-	for i := range 6 {
+	for i := 0; i < len(idsToVerify); i++ {
 		if res := rt.getBucketIndex(idsToVerify[i]); res != expectedIndexes[i] {
 			t.Error("Index of ID", idsToVerify[i].String(), "found at bucket", res, "when expected at", expectedIndexes[i])
 		}
