@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 )
 
 const bucketSize = 20
@@ -18,9 +19,9 @@ type RoutingTable struct {
 }
 
 // NewRoutingTable returns a new instance of a RoutingTable
-func NewRoutingTable(me Contact) *RoutingTable {
+func NewRoutingTable(kademlia *Kademlia) *RoutingTable {
 	routingTable := &RoutingTable{
-		me:      me,
+		me:      kademlia.Self,
 		buckets: make([]*bucket, 0, 160),
 		ops:     make(chan RoutingRequest),
 	}
@@ -29,19 +30,19 @@ func NewRoutingTable(me Contact) *RoutingTable {
 	routingTable.bucketsMutex.Unlock()
 	// routingTable.me = me
 	// return routingTable
-	go routingTable.run()
+	time.AfterFunc(200*time.Millisecond, func() { routingTable.run(kademlia) })
 	return routingTable
 }
 
-func (routingTable *RoutingTable) run() {
+func (routingTable *RoutingTable) run(kademlia *Kademlia) {
 	for req := range routingTable.ops {
 		switch req.requestType {
 		case AddContact:
 			idx := routingTable.getBucketIndex(req.contact.ID)
-			canAdd, canSplit := routingTable.buckets[idx].CanAddContact(req.contact, routingTable.me)
+			canAdd, canSplit := routingTable.buckets[idx].CanAddContact(req.contact, kademlia)
 
 			if !canAdd && canSplit {
-				canAdd, idx = routingTable.splitBucket(idx, req.contact)
+				canAdd, idx = routingTable.splitBucket(idx, req.contact, kademlia)
 			}
 
 			if canAdd {
@@ -59,7 +60,7 @@ func (routingTable *RoutingTable) run() {
 }
 
 // splitBucket splits the bucket at the index to try to accomodate for the contact
-func (routingTable *RoutingTable) splitBucket(idx int, contact Contact) (bool, int) {
+func (routingTable *RoutingTable) splitBucket(idx int, contact Contact, me *Kademlia) (bool, int) {
 	canAdd := false
 	canSplit := true
 	var bucketsToAdd []*bucket
@@ -70,10 +71,10 @@ func (routingTable *RoutingTable) splitBucket(idx int, contact Contact) (bool, i
 		bucket1, bucket0 := currentBucket.SplitBucket()
 		bucketsToAdd = append(bucketsToAdd, bucket1, bucket0)
 
-		canAdd, canSplit = bucket1.CanAddContact(contact, routingTable.me)
+		canAdd, canSplit = bucket1.CanAddContact(contact, me)
 
 		if !canAdd && !canSplit {
-			canAdd, canSplit = bucket0.CanAddContact(contact, routingTable.me)
+			canAdd, canSplit = bucket0.CanAddContact(contact, me)
 			currentBucket = bucket0
 			idx = indexStart + len(bucketsToAdd) - 1
 		} else {
@@ -157,6 +158,8 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 				}
 			}
 		}*/
+	routingTable.bucketsMutex.RLock()
+	defer routingTable.bucketsMutex.RUnlock()
 	for i := 0; i < len(routingTable.buckets); i++ {
 		bucket := routingTable.buckets[i]
 		if bucket.ContainsID(id) {

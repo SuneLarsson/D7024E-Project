@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"sync"
 )
 
 func getAlpha() int {
@@ -81,16 +82,18 @@ func gettExpire() int {
 }
 
 var (
-	ALPHA      = getAlpha()
-	BETA       = getBeta()
-	K          = getK()
-	TTL        = getTTL()
-	tReplicate = gettReplicate()
-	tRepublish = gettRepublish()
-	tExpire    = gettExpire()
+	ALPHA       = getAlpha()
+	BETA        = getBeta()
+	K           = getK()
+	TTL         = getTTL()
+	tReplicate  = gettReplicate()
+	tRepublish  = gettRepublish()
+	tExpire     = gettExpire()
+	configMutex sync.Mutex
 )
 
 func ReloadConfig() {
+	configMutex.Lock()
 	ALPHA = getAlpha()
 	BETA = getBeta()
 	K = getK()
@@ -98,6 +101,7 @@ func ReloadConfig() {
 	tReplicate = gettReplicate()
 	tRepublish = gettRepublish()
 	tExpire = gettExpire()
+	configMutex.Unlock()
 
 	log.Println("Configuration reloaded from environment variables.")
 }

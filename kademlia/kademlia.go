@@ -70,13 +70,10 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 		distance: nil,
 	}
 
-	routingtable := NewRoutingTable(contact)
-
 	ttl := time.Duration(TTL) * time.Second
 
 	kademlia := &Kademlia{
 		Self:         contact,
-		RoutingTable: routingtable,
 		mapManagerCh: make(chan MapRequest),
 		DataStore:    *storage.NewStorage(ttl),
 		keyStore:     make(map[string]chan string),
@@ -84,9 +81,14 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 		beta:         BETA,
 		k:            K,
 		ttl:          ttl,
-		done:         make(chan struct{}),
+		done:         make(chan struct{}, 3),
 		// *storage.NewStorageWithTTL(60 * time.Second),
 	}
+
+	routingtable := NewRoutingTable(kademlia)
+
+	kademlia.RoutingTable = routingtable
+
 
 	network := NewNetwork(contact, conn, kademlia.HandleMessage)
 
@@ -241,7 +243,10 @@ func (kademlia *Kademlia) PeriodicReplication(interval time.Duration) {
 // Shutdown gracefully
 func (kademlia *Kademlia) Shutdown() {
 
-	close(kademlia.done)
+	for range 3 {
+		kademlia.done <- struct{}{}
+	}
+	defer close(kademlia.done)
 	kademlia.wg.Wait()
 
 	if network, ok := kademlia.Network.(*Network); ok {

@@ -10,7 +10,8 @@ import (
 // TestBucketWorking verifies that the bucket works correctly with its parameters
 func TestBucketWorking(t *testing.T) {
 	// 1. Setup: Create a "me" contact
-	me := NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
+	me, _ := NewKademliaNode("localhost", 8000)
+	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
 	K = 3
 	BETA = 3
 	rt := NewRoutingTable(me)
@@ -74,31 +75,30 @@ func TestBucketWorking(t *testing.T) {
 		}
 	}
 	rt.bucketsMutex.RUnlock()
+}
 
-	// TEST NOT ADDING TO BUCKET
-	rt.AddContact(NewContact(NewKademliaID("9800000000000000000000000000000000000000"), "10011"))
+// TestBucketIsPresent verifies that the IsPresent function of a bucket is correct
+func TestBucketIsPresent(t *testing.T) {
+	me, _ := NewKademliaNode("localhost", 8000)
+	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
+	rt := NewRoutingTable(me)
+	rt.AddContact(NewContact(NewKademliaID("c000000000000000000000000000000000000000"), "Present"))
 
 	time.Sleep(100 * time.Millisecond)
-
 	fmt.Println(rt.PrintTree())
-
-	rt.bucketsMutex.RLock()
-	if len(rt.buckets) != 3 {
-		t.Error("There should be three buckets at this time")
+	if !rt.buckets[0].IsPresent(NewKademliaID("c000000000000000000000000000000000000000")) {
+		t.Error("The contact should be present")
 	}
 
-	bucketSizes = [3]int{2, 3, 1}
-	for i, size := range bucketSizes {
-		if rt.buckets[i].Len() != size {
-			t.Error("Bucket at index", i, "is of size", rt.buckets[i].Len(), "when it should be", size)
-		}
+	if rt.buckets[0].IsPresent(NewKademliaID("c100000000000000000000000000000000000000")) {
+		t.Error("There is no contact with this KademliaID")
 	}
-	rt.bucketsMutex.RUnlock()
 }
 
 // TestGetBucketIndex verifies that the bucket index is correctly gotten
 func TestGetBucketIndex(t *testing.T) {
-	me := NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
+	me, _ := NewKademliaNode("localhost", 8000)
+	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
 	rt := NewRoutingTable(me)
 	rt.buckets = []*bucket{
 		newBucket("11", 2),
@@ -129,7 +129,8 @@ func TestGetBucketIndex(t *testing.T) {
 // TestFindClosestContacts tests the core functionality of finding and sorting contacts.
 func TestFindClosestContacts(t *testing.T) {
 	// 1. Setup: Create a routing table and a set of contacts to add.
-	me := NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
+	me, _ := NewKademliaNode("localhost", 8000)
+	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
 	rt := NewRoutingTable(me)
 
 	// Create contacts. Their hex values are chosen to control their distance.
@@ -192,7 +193,7 @@ func TestFindClosestContacts(t *testing.T) {
 	// Sub-test 3: Test on a completely empty routing table.
 	t.Run("Returns empty slice for an empty routing table", func(t *testing.T) {
 		emptyRt := NewRoutingTable(me)
-		closest := emptyRt.FindClosestContacts(me.ID, 5)
+		closest := emptyRt.FindClosestContacts(me.Self.ID, 5)
 
 		if len(closest) != 0 {
 			t.Fatalf("Expected 0 contacts from an empty table, but got %d", len(closest))
@@ -210,7 +211,8 @@ func getContactIDs(contacts []Contact) []string {
 }
 
 func TestRoutingTablePrint(t *testing.T) {
-	self := NewContact(NewRandomKademliaID(), "nodeA")
+	self, _ := NewKademliaNode("localhost", 8000)
+	self.Self = NewContact(NewRandomKademliaID(), "nodeA")
 	rt := NewRoutingTable(self)
 
 	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
@@ -223,7 +225,9 @@ func TestRoutingTablePrint(t *testing.T) {
 func TestGeneralRoutingTreePrint(t *testing.T) {
 	// Build a fake routing tree for b=2
 
-	rt := NewRoutingTable(NewContact(NewRandomKademliaID(), "Myself"))
+	self, _ := NewKademliaNode("localhost", 8000)
+	self.Self = NewContact(NewRandomKademliaID(), "Myself")
+	rt := self.RoutingTable
 
 	rt.bucketsMutex.Lock()
 	defer rt.bucketsMutex.Unlock()

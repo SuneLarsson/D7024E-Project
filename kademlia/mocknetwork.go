@@ -73,18 +73,20 @@ func (m *MockNetworkAdapter) Listen() error {
 }
 
 func NewTestKademliaNode(address string, sim *SimulatedNetwork) *Kademlia {
+	return NewTestKademliaNodeWithID(NewRandomKademliaID(), address, sim)
+}
+
+func NewTestKademliaNodeWithID(id *KademliaID, address string, sim *SimulatedNetwork) *Kademlia {
 	contact := Contact{
-		ID:      NewRandomKademliaID(),
+		ID:      id,
 		Address: address,
 	}
-	rt := NewRoutingTable(contact)
 
 	ttl := time.Duration(TTL) * time.Second
 
 	// 1. Create the Kademlia struct instance first.
 	kademliaNode := &Kademlia{
 		Self:         contact,
-		RoutingTable: rt,
 		DataStore:    *storage.NewStorage(ttl),
 		mapManagerCh: make(chan MapRequest),
 		keyStore:     make(map[string]chan string),
@@ -92,7 +94,12 @@ func NewTestKademliaNode(address string, sim *SimulatedNetwork) *Kademlia {
 		alpha:        ALPHA,
 		beta:         BETA,
 		k:            K,
+		done:         make(chan struct{}),
 	}
+
+	rt := NewRoutingTable(kademliaNode)
+
+	kademliaNode.RoutingTable = rt
 
 	// 2. Create the mock network adapter for this specific node.
 	adapter := &MockNetworkAdapter{
@@ -103,9 +110,13 @@ func NewTestKademliaNode(address string, sim *SimulatedNetwork) *Kademlia {
 	// 3. Assign the adapter to the node's Network field.
 	kademliaNode.Network = adapter
 
+	kademliaNode.wg.Add(3)
+
 	// 4. Register the fully assembled node with the central simulation.
 	sim.AddNode(kademliaNode)
 
 	go kademliaNode.managePendingRequests()
+	go kademliaNode.RunPeriodicCleanup(5 * time.Second)
+	go kademliaNode.PeriodicReplication(time.Duration(tReplicate) * time.Hour)
 	return kademliaNode
 }

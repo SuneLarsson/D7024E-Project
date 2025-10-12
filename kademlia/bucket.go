@@ -22,13 +22,10 @@ func newBucket(prefix string, depth int) *bucket {
 	bucket.list = list.New()
 	bucket.prefix = prefix
 	bucket.depth = depth
+	configMutex.Lock()
 	bucket.b = BETA
+	configMutex.Unlock()
 	return bucket
-}
-
-// newBucket returns a new instance of a bucket
-func (bucket *bucket) setB(b int) {
-	bucket.b = b
 }
 
 // AddContact adds the Contact to the front of the bucket
@@ -57,7 +54,7 @@ func (bucket *bucket) AddContact(contact Contact) {
 
 // CanAddContact verifies whether a contact can be added to the current bucket
 // If it cannot but the bucket can be split, then it says so
-func (bucket *bucket) CanAddContact(contact Contact, me Contact) (bool, bool) {
+func (bucket *bucket) CanAddContact(contact Contact, kademlia *Kademlia) (bool, bool) {
 	var canAdd bool = false
 	var canSplit bool = false
 
@@ -71,12 +68,28 @@ func (bucket *bucket) CanAddContact(contact Contact, me Contact) (bool, bool) {
 		}
 
 		// Must be < K because <= K would lead to K+1 sized bucket
+		configMutex.Lock()
 		if !canAdd && bucket.list.Len() < K {
 			canAdd = true
 		}
+		configMutex.Unlock()
 
-		if !canAdd && (bucket.ContainsID(me.ID) || bucket.depth%bucket.b != 0) {
+		if !canAdd && (bucket.ContainsID(kademlia.Self.ID) || bucket.depth%bucket.b != 0) {
 			canSplit = true
+		}
+
+		if !canAdd && !canSplit && bucket.list.Len() == K {
+			bucket.mu.Lock()
+			backElement := bucket.list.Back()
+			otherNode := backElement.Value.(Contact)
+			err := kademlia.SendPing(&otherNode)
+			if err == nil {
+				bucket.list.MoveToFront(backElement)
+			} else {
+				bucket.list.Remove(backElement)
+				canAdd = true
+			}
+			bucket.mu.Unlock()
 		}
 	}
 	return canAdd, canSplit
@@ -91,6 +104,19 @@ func (bucket *bucket) ContainsID(id *KademliaID) bool {
 		contains = true
 	}
 	return contains
+}
+
+// IsPresent checks if the KademliaID is present in the bucket
+func (bucket *bucket) IsPresent(id *KademliaID) bool {
+	bucket.mu.Lock()
+	defer bucket.mu.Unlock()
+	for e := bucket.list.Back(); e != nil; e = e.Prev() {
+		nodeID := e.Value.(Contact).ID
+		if nodeID.String() == id.String() {
+			return true
+		}
+	}
+	return false
 }
 
 // SplitBucket splits a bucket into two different buckets by creating a new one and returning both
@@ -148,7 +174,7 @@ func (bucket *bucket) getContactForBucketRefresh() Contact {
 	}
 	randomIndex := rand.Intn(bucket.list.Len())
 	element := bucket.list.Front()
-	for i := 0; i < randomIndex; i++ {
+	for range randomIndex {
 		element = element.Next()
 	}
 	return element.Value.(Contact)
