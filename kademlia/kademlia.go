@@ -89,7 +89,6 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 
 	kademlia.RoutingTable = routingtable
 
-
 	network := NewNetwork(contact, conn, kademlia.HandleMessage)
 
 	kademlia.Network = network

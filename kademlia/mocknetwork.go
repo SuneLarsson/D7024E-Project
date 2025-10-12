@@ -114,7 +114,6 @@ func NewTestKademliaNodeWithID(id *KademliaID, address string, sim *SimulatedNet
 
 	// 4. Register the fully assembled node with the central simulation.
 	sim.AddNode(kademliaNode)
-
 	go kademliaNode.managePendingRequests()
 	go kademliaNode.RunPeriodicCleanup(5 * time.Second)
 	go kademliaNode.PeriodicReplication(time.Duration(tReplicate) * time.Hour)

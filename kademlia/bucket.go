@@ -79,9 +79,9 @@ func (bucket *bucket) CanAddContact(contact Contact, kademlia *Kademlia) (bool, 
 		}
 
 		if !canAdd && !canSplit && bucket.list.Len() == K {
-			bucket.mu.Lock()
 			backElement := bucket.list.Back()
 			otherNode := backElement.Value.(Contact)
+			bucket.mu.Lock()
 			err := kademlia.SendPing(&otherNode)
 			if err == nil {
 				bucket.list.MoveToFront(backElement)

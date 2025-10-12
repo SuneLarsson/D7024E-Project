@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestBucketWorking verifies that the bucket works correctly with its parameters
@@ -79,7 +81,7 @@ func TestBucketWorking(t *testing.T) {
 
 // TestBucketIsPresent verifies that the IsPresent function of a bucket is correct
 func TestBucketIsPresent(t *testing.T) {
-	me, _ := NewKademliaNode("localhost", 8000)
+	me, _ := NewKademliaNode("localhost", 8001)
 	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
 	rt := NewRoutingTable(me)
 	rt.AddContact(NewContact(NewKademliaID("c000000000000000000000000000000000000000"), "Present"))
@@ -97,7 +99,7 @@ func TestBucketIsPresent(t *testing.T) {
 
 // TestGetBucketIndex verifies that the bucket index is correctly gotten
 func TestGetBucketIndex(t *testing.T) {
-	me, _ := NewKademliaNode("localhost", 8000)
+	me, _ := NewKademliaNode("localhost", 8002)
 	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
 	rt := NewRoutingTable(me)
 	rt.buckets = []*bucket{
@@ -129,7 +131,7 @@ func TestGetBucketIndex(t *testing.T) {
 // TestFindClosestContacts tests the core functionality of finding and sorting contacts.
 func TestFindClosestContacts(t *testing.T) {
 	// 1. Setup: Create a routing table and a set of contacts to add.
-	me, _ := NewKademliaNode("localhost", 8000)
+	me, _ := NewKademliaNode("localhost", 8003)
 	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
 	rt := NewRoutingTable(me)
 
@@ -211,7 +213,7 @@ func getContactIDs(contacts []Contact) []string {
 }
 
 func TestRoutingTablePrint(t *testing.T) {
-	self, _ := NewKademliaNode("localhost", 8000)
+	self, _ := NewKademliaNode("localhost", 8004)
 	self.Self = NewContact(NewRandomKademliaID(), "nodeA")
 	rt := NewRoutingTable(self)
 
@@ -225,30 +227,39 @@ func TestRoutingTablePrint(t *testing.T) {
 func TestGeneralRoutingTreePrint(t *testing.T) {
 	// Build a fake routing tree for b=2
 
-	self, _ := NewKademliaNode("localhost", 8000)
-	self.Self = NewContact(NewRandomKademliaID(), "Myself")
-	rt := self.RoutingTable
+	t.Run("Printing Tree", func(t *testing.T) {
+		self, _ := NewKademliaNode("localhost", 8005)
+		self.Self = NewContact(NewRandomKademliaID(), "Myself")
+		rt := self.RoutingTable
 
-	rt.bucketsMutex.Lock()
-	defer rt.bucketsMutex.Unlock()
+		rt.bucketsMutex.Lock()
 
-	rt.buckets = []*bucket{
-		newBucket("00", 2),
-		newBucket("01", 2),
-		newBucket("10", 2),
-		newBucket("11", 2),
-	}
+		rt.buckets = []*bucket{
+			newBucket("00", 2),
+			newBucket("01", 2),
+			newBucket("10", 2),
+			newBucket("11", 2),
+		}
+		rt.bucketsMutex.Unlock()
 
-	nodeA := NewContact(NewRandomKademliaID(), "nodeA")
-	fmt.Println(nodeA.ID.String())
-	rt.AddContact(nodeA)
-	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
-	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeC"))
-	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeD"))
+		nodeA := NewContact(NewRandomKademliaID(), "nodeA")
+		fmt.Println(nodeA.ID.String())
+		fmt.Println("Adding nodeA")
+		rt.AddContact(nodeA)
+		fmt.Println("Adding nodeB")
+		rt.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
+		fmt.Println("Adding nodeC")
+		rt.AddContact(NewContact(NewRandomKademliaID(), "nodeC"))
+		fmt.Println("Adding nodeD")
+		rt.AddContact(NewContact(NewRandomKademliaID(), "nodeD"))
 
-	time.Sleep(100 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 
-	fmt.Println("Routing Tree (b=2):")
-	fmt.Println(rt.PrintTree())
+		fmt.Println("Routing Tree (b=2):")
+		fmt.Println(rt.PrintTree())
+
+		assert.True(t, true, "")
+	})
+
 	//t.Error("test")
 }

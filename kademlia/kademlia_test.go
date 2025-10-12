@@ -1,6 +1,7 @@
 package kademlia
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -106,81 +107,71 @@ func TestRemoveFromBucket(t *testing.T) {
 	K = 2
 	BETA = 1
 	configMutex.Unlock()
-	sim := NewSimulatedNetwork(0, 0)
-	watchingNode := NewTestKademliaNodeWithID(NewKademliaID("1000000000000000000000000000000000000000"), "watching", sim)
 
+	// Create network with 0 drop rate
+	sim := NewSimulatedNetwork(0, 0)
+
+	// Create nodes
+	watchingNode := NewTestKademliaNodeWithID(NewKademliaID("1000000000000000000000000000000000000000"), "watching", sim)
+	nodeA := NewTestKademliaNodeWithID(NewKademliaID("0000000000000000000000000000000000000000"), "nodeA", sim)
+	nodeB := NewTestKademliaNodeWithID(NewKademliaID("8000000000000000000000000000000000000000"), "nodeB", sim)
+	nodeC := NewTestKademliaNodeWithID(NewKademliaID("c000000000000000000000000000000000000000"), "nodeC", sim)
+	nodeD := NewTestKademliaNodeWithID(NewKademliaID("a000000000000000000000000000000000000000"), "nodeD", sim)
+
+	// Give time for network setup
+	time.Sleep(200 * time.Millisecond)
+
+	// Set bucket split parameter
 	rt := watchingNode.RoutingTable
 	rt.buckets[0].b = 1
 
-	nodeA := NewTestKademliaNodeWithID(NewKademliaID("0000000000000000000000000000000000000000"), "nodeA", sim) // 00000000
-	nodeB := NewTestKademliaNodeWithID(NewKademliaID("8000000000000000000000000000000000000000"), "nodeB", sim) // 10000000
-	nodeC := NewTestKademliaNodeWithID(NewKademliaID("c000000000000000000000000000000000000000"), "nodeC", sim) // 11000000
-	nodeD := NewTestKademliaNodeWithID(NewKademliaID("a000000000000000000000000000000000000000"), "nodeD", sim) // 10100000
-
+	// Add nodes in sequence, with time to stabilize
 	nodeA.JoinNetwork(&watchingNode.Self)
-	nodeB.JoinNetwork(&watchingNode.Self)
-	nodeC.JoinNetwork(&watchingNode.Self)
-
-	// At this point the routing table of watching node should be [{C,B},{A}]
-	//fmt.Println(rt.PrintTree())
-	if len(rt.buckets) != 2 {
-		t.Error("The routing table of the watching node should have two buckets")
-	}
-
-	if !(rt.buckets[1].IsPresent(nodeA.Self.ID) && rt.buckets[0].IsPresent(nodeB.Self.ID) && rt.buckets[0].IsPresent(nodeC.Self.ID)) {
-		t.Error("The routing table of the watching node should contain two buckets :\n 0 with nodeC and nodeB\n 1 with nodeA")
-	}
-
-	//fmt.Println(rt.PrintTree())
-
-	nodeD.JoinNetwork(&watchingNode.Self)
-
 	time.Sleep(100 * time.Millisecond)
 
-	// At this point the routing table of watching node should be [{B,C},{A}]
-	//fmt.Println(rt.PrintTree())
-	if len(rt.buckets) != 2 {
-		t.Error("The routing table of the watching node should have two buckets")
-	}
+	nodeB.JoinNetwork(&watchingNode.Self)
+	time.Sleep(100 * time.Millisecond)
 
-	if !(rt.buckets[0].Len() == 2 && rt.buckets[1].Len() == 1) {
-		t.Error("The buckets should not have changed")
-	}
+	nodeC.JoinNetwork(&watchingNode.Self)
+	time.Sleep(100 * time.Millisecond)
 
-	/*if !(rt.buckets[1].IsPresent(nodeA.Self.ID) && rt.buckets[0].IsPresent(nodeB.Self.ID) && rt.buckets[0].IsPresent(nodeC.Self.ID)) {
-		t.Error("The routing table of the watching node should contain two buckets :\n 0 with nodeB and nodeC\n 1 with nodeA")
-	}*/
+	// Verify first state
+	assert.Equal(t, 2, len(rt.buckets), "Should have exactly 2 buckets")
+	assert.True(t, rt.buckets[1].IsPresent(nodeA.Self.ID), "Bucket 1 should contain nodeA")
+	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should contain nodeB")
+	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeB.Self.ID), "nodeB should be the least-recently seen node of bucket 0")
+	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should contain nodeC")
 
-	if rt.buckets[0].list.Front().Value.(Contact).ID != nodeB.Self.ID {
-		t.Error("NodeB should have been brought at the front of the bucket")
-	}
+	// Try to add nodeD (should trigger PING to nodeC)
+	nodeD.JoinNetwork(&watchingNode.Self)
+	time.Sleep(100 * time.Millisecond)
 
+	fmt.Println(rt.PrintTree())
+	// Verify second state
+	assert.Equal(t, 2, len(rt.buckets), "Should still have 2 buckets")
+	assert.Equal(t, 2, rt.buckets[0].Len(), "Bucket 0 should have 2 nodes")
+	assert.Equal(t, 1, rt.buckets[1].Len(), "Bucket 1 should have 1 node")
+	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeC.Self.ID), "nodeC should be the least-recently seen node of bucket 0")
+	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should contain nodeB")
+	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should contain nodeC")
+
+	// Shutdown nodeC and try to add nodeD again
 	nodeC.Shutdown()
-
+	delete(sim.nodes, "nodeC")
 	time.Sleep(200 * time.Millisecond)
 
 	nodeD.JoinNetwork(&watchingNode.Self)
+	time.Sleep(200 * time.Millisecond)
 
-	time.Sleep(100 * time.Millisecond)
-
-	// At this point the routing table of watching node should be [{D,B},{A}]
 	//fmt.Println(rt.PrintTree())
-	if len(rt.buckets) != 2 {
-		t.Error("The routing table of the watching node should have two buckets")
-	}
 
-	if !(rt.buckets[0].Len() == 2 && rt.buckets[1].Len() == 1) {
-		t.Error("The buckets length should not have changed in length")
-	}
-
-	/*if !(rt.buckets[1].IsPresent(nodeA.Self.ID) && rt.buckets[0].IsPresent(nodeB.Self.ID) && rt.buckets[0].IsPresent(nodeD.Self.ID)) {
-		t.Error("The routing table of the watching node should contain two buckets :\n 0 with nodeD and nodeB\n 1 with nodeA")
-	}*/
-
-	if rt.buckets[0].list.Front().Value.(Contact).ID != nodeD.Self.ID {
-		t.Error("NodeD should have been brought at the front of the bucket")
-	}
+	// Verify final state
+	assert.True(t, rt.buckets[0].IsPresent(nodeD.Self.ID), "Bucket 0 should now contain nodeD")
+	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should still contain nodeB")
+	assert.False(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should no longer contain nodeC")
+	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeC.Self.ID), "nodeB should be the least-recently seen node of bucket 0")
+	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should contain nodeB")
+	assert.True(t, rt.buckets[0].IsPresent(nodeD.Self.ID), "Bucket 0 should contain nodeD")
 
 	ReloadConfig()
-
 }
