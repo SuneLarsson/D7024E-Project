@@ -3,6 +3,7 @@ package cli
 import (
 	"d7024e/server"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -16,7 +17,8 @@ var putCmd = &cobra.Command{
 	Short: "Upload a file",
 	Long:  "Upload a file",
 	Run: func(cmd *cobra.Command, args []string) {
-		response := put(args[0])
+		value := strings.Join(args, " ")
+		response := put(value)
 		fmt.Println("Value stored at key", response)
 	},
 }

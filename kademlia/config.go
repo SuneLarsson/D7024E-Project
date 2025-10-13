@@ -21,7 +21,7 @@ func getBeta() int {
 	betaStr := os.Getenv("BETA")
 	beta, err := strconv.Atoi(betaStr)
 	if err != nil {
-		log.Printf("Error parsing BETA from environment, using default 5: %v", err)
+		log.Printf("Error parsing BETA from environment, using default 20: %v", err)
 		return 20
 	}
 	return beta

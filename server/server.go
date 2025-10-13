@@ -114,8 +114,10 @@ func (s *Server) Listen() {
 
 		// Find the full contact info from our routing table.
 		// Note: The bootstrap node should be the ONLY contact at this point.
+		time.Sleep(100 * time.Millisecond)
 		contacts := s.node.RoutingTable.FindClosestContacts(dummyContact.ID, 1)
 		if len(contacts) < 1 {
+			log.Println(s.node.RoutingTable.PrintTree())
 			log.Fatal("Bootstrap contact not found in routing table after successful ping.")
 		}
 
