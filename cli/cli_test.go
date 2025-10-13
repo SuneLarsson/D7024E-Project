@@ -37,7 +37,7 @@ func TestGoodBehaviour(t *testing.T) {
 		server2.Listen()
 	}()
 
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(400 * time.Millisecond)
 
 	// Create a pipe to capture output
 	r, w, _ := os.Pipe()
