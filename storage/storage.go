@@ -22,6 +22,7 @@ type Storage struct {
 	mutex       sync.Mutex
 	information *StoredInfo
 	ttl         time.Duration
+	tExpire     int64
 }
 
 //	func NewStorageWithTTL(ttl time.Duration) *Storage {
@@ -30,10 +31,11 @@ type Storage struct {
 //			ttl:     ttl,
 //		}
 //	}
-func NewStorage(ttl time.Duration) *Storage {
+func NewStorage(ttl time.Duration, tExpire int64) *Storage {
 	return &Storage{
 		ttl:         ttl,
-		information: nil}
+		information: nil,
+		tExpire:     tExpire}
 }
 
 func (storage *Storage) Get(key string) (string, bool) {
@@ -170,6 +172,12 @@ func (storage *Storage) Clean() {
 func (storage *Storage) isTimestampValid(timestamp int64) bool {
 	age := time.Now().UnixMilli() - timestamp
 	return age <= storage.ttl.Milliseconds()
+}
+
+func (storage *Storage) isKeyExpired(timestamp int64) bool {
+	timeElapsed := time.Now().UnixMilli() - timestamp
+	timeAllowed := storage.tExpire * time.Hour.Milliseconds()
+	return timeElapsed < timeAllowed
 }
 
 func (storage *Storage) GetValueAndMetadataForReplication(key string) (value string, isOriginal bool, found bool) {

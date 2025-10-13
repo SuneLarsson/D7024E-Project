@@ -53,7 +53,7 @@ func gettReplicate() int {
 	tReplicate, err := strconv.Atoi(tReplicateStr)
 	if err != nil {
 		log.Printf("Error parsing tReplicate from environment, using default 3600: %v", err)
-		return 3600
+		return 1
 	}
 
 	return tReplicate
@@ -64,7 +64,7 @@ func gettRepublish() int {
 	tRepublish, err := strconv.Atoi(tRepublishStr)
 	if err != nil {
 		log.Printf("Error parsing tRepublish from environment, using default 86400: %v", err)
-		return 86400
+		return 24
 	}
 
 	return tRepublish
@@ -75,7 +75,7 @@ func gettExpire() int {
 	tExpire, err := strconv.Atoi(tExpireStr)
 	if err != nil {
 		log.Printf("Error parsing tExpire from environment, using default 3600: %v", err)
-		return 3600 + 86400
+		return 25
 	}
 
 	return tExpire

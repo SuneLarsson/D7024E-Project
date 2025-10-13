@@ -6,10 +6,11 @@ import (
 )
 
 const Test_ttl = 24 * time.Hour
+const tExpire = 25 // in hours
 
 // Test what happens when trying to use the Get function with an empty string as parameter
 func TestGetEmptyKey(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	defer func() {
 		if err := recover(); err == nil || err != ERR_INVALIDKEY {
 			t.Error("When the key is empty, ERR_INVALIDKEY should be thrown")
@@ -20,7 +21,7 @@ func TestGetEmptyKey(t *testing.T) {
 
 // Test what happens when trying to use the Put function with an empty string as key parameter
 func TestPutEmptyKey(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	defer func() {
 		if err := recover(); err == nil || err != ERR_INVALIDKEY {
 			t.Error("When the key is empty, ERR_INVALIDKEY should be thrown")
@@ -31,7 +32,7 @@ func TestPutEmptyKey(t *testing.T) {
 
 // Test what happens when trying to use the Put function with an empty string as value parameter
 func TestPutEmptyValue(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	defer func() {
 		if err := recover(); err == nil || err != ERR_INVALIDVALUE {
 			t.Error("When the value is empty ERR_INVALIDVALUE should be thrown")
@@ -42,7 +43,7 @@ func TestPutEmptyValue(t *testing.T) {
 
 // Test what happens when trying to use the PutWithTimestamp function with an empty string as key parameter
 func TestPutWithTimestampEmptyKey(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	defer func() {
 		if err := recover(); err == nil || err != ERR_INVALIDKEY {
 			t.Error("When the key is empty, ERR_INVALIDKEY should be thrown")
@@ -53,7 +54,7 @@ func TestPutWithTimestampEmptyKey(t *testing.T) {
 
 // Test what happens when trying to use the PutWithTimestamp function with an empty string as value parameter
 func TestPutWithTimestampEmptyValue(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	defer func() {
 		if err := recover(); err == nil || err != ERR_INVALIDVALUE {
 			t.Error("When the value is empty ERR_INVALIDVALUE should be thrown")
@@ -64,7 +65,7 @@ func TestPutWithTimestampEmptyValue(t *testing.T) {
 
 // Test what happens when trying to use the PutWithTimestamp function with an timestamp from more than a day ago
 func TestPutWithTimestampInvalidTimeStamp(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	defer func() {
 		if err := recover(); err == nil || err != ERR_INVALIDTIMESTAMP {
 			t.Error("When the value is empty ERR_INVALIDTIMESTAMP should be thrown")
@@ -76,7 +77,7 @@ func TestPutWithTimestampInvalidTimeStamp(t *testing.T) {
 // Test for good behaviour
 func TestGoodBehaviour(t *testing.T) {
 
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	key := "thisismykey"
 	value := "thisismyvalue"
 	storage.Put(key, value, true, true)
@@ -89,7 +90,7 @@ func TestGoodBehaviour(t *testing.T) {
 
 // Test for Get unknown key
 func TestGetUnknownKey(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	key := "keywithnoknownvalue"
 	var exists bool
 	_, exists = storage.Get(key)
@@ -100,7 +101,7 @@ func TestGetUnknownKey(t *testing.T) {
 
 // Test for Get when last value in order
 func TestGetLastValue(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	storage.Put("aaa", "wrongValue", false, false)
 	storage.Put("bbb", "wrongValue", false, false)
 	storage.Put("ccc", "rightValue", true, true)
@@ -117,7 +118,7 @@ func TestPutExistingKey(t *testing.T) {
 			t.Error("No error should be thrown when assigning a new value to an existing key")
 		}
 	}()
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	key := "thisismykey"
 	value := "thisismyFIRSTvalue"
 	storage.Put(key, value, true, true)
@@ -132,7 +133,7 @@ func TestPutExistingKey(t *testing.T) {
 
 // Test Size is 0 upon creation
 func TestSizeCreation(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	sizeStorage := storage.Size()
 	if sizeStorage != 0 {
 		t.Error("Storage is supposed to be empty on creation, size found to be", sizeStorage)
@@ -141,7 +142,7 @@ func TestSizeCreation(t *testing.T) {
 
 // Test that size grows up when adding a new element
 func TestSizeGrowing(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	storage.Put("key", "value", true, true)
 	sizeStorage := storage.Size()
 	if sizeStorage != 1 {
@@ -151,7 +152,7 @@ func TestSizeGrowing(t *testing.T) {
 
 // Test of cleaning ancient values
 func TestCleaning(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	timestamp := time.Now().AddDate(0, 0, -1).Add(100 * time.Millisecond).UnixMilli()
 	storage.PutWithTimestamp("key", "value", timestamp, true, true)
 	time.Sleep(200 * time.Millisecond)
@@ -164,7 +165,7 @@ func TestCleaning(t *testing.T) {
 
 // Test of cleaning with a recent value before
 func TestCleaningWithRecentThenAncient(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	storage.Put("aaa", "value", true, true)
 	timestamp := time.Now().AddDate(0, 0, -1).Add(100 * time.Millisecond).UnixMilli()
 	storage.PutWithTimestamp("bbb", "value", timestamp, true, true)
@@ -178,7 +179,7 @@ func TestCleaningWithRecentThenAncient(t *testing.T) {
 
 // Test of reset of timestamp ancient values
 func TestResetTimestampBeforeCleaning(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 	timestamp := time.Now().AddDate(0, 0, -1).Add(100 * time.Millisecond).UnixMilli()
 	storage.PutWithTimestamp("key", "value", timestamp, true, true)
 	sizeStorage1 := storage.Size()
@@ -193,7 +194,7 @@ func TestResetTimestampBeforeCleaning(t *testing.T) {
 
 // Test the recuperation of the keys of the storage
 func TestGetKeys(t *testing.T) {
-	storage := NewStorage(Test_ttl)
+	storage := NewStorage(Test_ttl, tExpire)
 
 	if len(storage.GetKeys()) != 0 {
 		t.Error("Storage should be empty on creation")
