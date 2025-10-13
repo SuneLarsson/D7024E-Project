@@ -176,7 +176,7 @@ func (bucket *bucket) getContactForBucketRefresh() Contact {
 	}
 	randomIndex := rand.Intn(bucket.list.Len())
 	element := bucket.list.Front()
-	for range randomIndex {
+	for i := 0; i < randomIndex; i++ {
 		element = element.Next()
 	}
 	return element.Value.(Contact)
