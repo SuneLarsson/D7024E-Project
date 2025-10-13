@@ -44,6 +44,8 @@ func (bucket *bucket) AddContact(contact Contact) {
 	}
 
 	if element == nil {
+		configMutex.Lock()
+		defer configMutex.Unlock()
 		if bucket.list.Len() < K {
 			bucket.list.PushFront(contact)
 		}

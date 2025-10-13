@@ -16,7 +16,7 @@ func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 		msg.From.Address = addr.String()
 	}
 
-	kademlia.RoutingTable.AddContact(msg.From)
+	go kademlia.RoutingTable.AddContact(msg.From)
 	// kademlia.keyMutex.Unlock()
 
 	// fmt.Printf("Received message of type %s from %s\n", msg.Type, msg.From.Address)

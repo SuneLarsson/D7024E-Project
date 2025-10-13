@@ -134,6 +134,8 @@ func TestRemoveFromBucket(t *testing.T) {
 
 	nodeC.JoinNetwork(&watchingNode.Self)
 	time.Sleep(100 * time.Millisecond)
+	fmt.Println(rt.PrintTree())
+	fmt.Println("------------------------------------------------")
 
 	// Verify first state
 	assert.Equal(t, 2, len(rt.buckets), "Should have exactly 2 buckets")
@@ -143,10 +145,11 @@ func TestRemoveFromBucket(t *testing.T) {
 	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should contain nodeC")
 
 	// Try to add nodeD (should trigger PING to nodeC)
-	nodeD.JoinNetwork(&watchingNode.Self)
+	rt.AddContact(nodeD.Self)
 	time.Sleep(100 * time.Millisecond)
 
 	fmt.Println(rt.PrintTree())
+	fmt.Println("------------------------------------------------")
 	// Verify second state
 	assert.Equal(t, 2, len(rt.buckets), "Should still have 2 buckets")
 	assert.Equal(t, 2, rt.buckets[0].Len(), "Bucket 0 should have 2 nodes")
@@ -156,20 +159,20 @@ func TestRemoveFromBucket(t *testing.T) {
 	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should contain nodeC")
 
 	// Shutdown nodeC and try to add nodeD again
-	nodeC.Shutdown()
 	delete(sim.nodes, "nodeC")
 	time.Sleep(200 * time.Millisecond)
 
-	nodeD.JoinNetwork(&watchingNode.Self)
+	rt.AddContact(nodeD.Self)
 	time.Sleep(200 * time.Millisecond)
 
-	//fmt.Println(rt.PrintTree())
+	fmt.Println(rt.PrintTree())
+	fmt.Println("------------------------------------------------")
 
 	// Verify final state
 	assert.True(t, rt.buckets[0].IsPresent(nodeD.Self.ID), "Bucket 0 should now contain nodeD")
 	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should still contain nodeB")
 	assert.False(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should no longer contain nodeC")
-	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeC.Self.ID), "nodeB should be the least-recently seen node of bucket 0")
+	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeB.Self.ID), "nodeB should be the least-recently seen node of bucket 0")
 	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should contain nodeB")
 	assert.True(t, rt.buckets[0].IsPresent(nodeD.Self.ID), "Bucket 0 should contain nodeD")
 
