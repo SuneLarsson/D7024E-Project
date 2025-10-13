@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -67,6 +68,7 @@ func (routingTable *RoutingTable) splitBucket(idx int, contact Contact, me *Kade
 	indexStart := idx
 	routingTable.bucketsMutex.RLock()
 	currentBucket := routingTable.buckets[indexStart]
+	depth := currentBucket.depth
 	for !canAdd && canSplit {
 		bucket1, bucket0 := currentBucket.SplitBucket()
 		bucketsToAdd = append(bucketsToAdd, bucket1, bucket0)
@@ -90,6 +92,8 @@ func (routingTable *RoutingTable) splitBucket(idx int, contact Contact, me *Kade
 		routingTable.buckets[indexStart] = bucketsToAdd[0]
 		routingTable.buckets = append(routingTable.buckets[:indexStart+1], append(bucketsToAdd[1:], routingTable.buckets[indexStart+1:]...)...)
 		routingTable.bucketsMutex.Unlock()
+	} else {
+		routingTable.buckets[indexStart].depth = depth
 	}
 	return canAdd, idx
 }
@@ -195,7 +199,7 @@ func (routingTable *RoutingTable) PrintTree() string {
 	result.WriteString("[Root]\n")
 
 	for _, bucket := range routingTable.buckets {
-		result.WriteString(basicIndent + branch + " " + bucket.prefix + "*\n")
+		result.WriteString(basicIndent + branch + " " + bucket.prefix + "* depth=" + strconv.Itoa(bucket.depth) + "\n")
 
 		bucket.mu.Lock()
 		if bucket.list.Len() == 0 {

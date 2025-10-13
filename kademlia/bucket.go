@@ -2,7 +2,9 @@ package kademlia
 
 import (
 	"container/list"
+	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 )
 
@@ -47,6 +49,7 @@ func (bucket *bucket) AddContact(contact Contact) {
 		configMutex.Lock()
 		defer configMutex.Unlock()
 		if bucket.list.Len() < K {
+			fmt.Println("Pushing", contact.Address, "to FRONT")
 			bucket.list.PushFront(contact)
 		}
 	} else {
@@ -64,7 +67,7 @@ func (bucket *bucket) CanAddContact(contact Contact, kademlia *Kademlia) (bool, 
 		for e := bucket.list.Front(); e != nil; e = e.Next() {
 			nodeID := e.Value.(Contact).ID
 
-			if (contact).ID.Equals(nodeID) {
+			if contact.ID.Equals(nodeID) {
 				canAdd = true
 			}
 		}
@@ -101,11 +104,33 @@ func (bucket *bucket) CanAddContact(contact Contact, kademlia *Kademlia) (bool, 
 func (bucket *bucket) ContainsID(id *KademliaID) bool {
 	bucket.mu.Lock()
 	defer bucket.mu.Unlock()
-	contains := false
-	if len(id.BinaryString()) >= bucket.depth && id.BinaryString()[:bucket.depth] == bucket.prefix {
-		contains = true
+
+	// Normalize prefix (trim spaces/newlines)
+	prefix := strings.TrimSpace(bucket.prefix)
+	depth := bucket.depth
+	binID := strings.TrimSpace(id.BinaryString())
+
+	// Sanity checks
+	if len(binID) < depth {
+		// The binary ID is shorter than the depth we're checking — cannot match
+		return false
 	}
-	return contains
+
+	if len(prefix) != depth {
+		// Mismatch between prefix length and depth — usually a bucket setup issue
+		// You can either return false or enforce correction
+		// For safety, compare up to the shorter of the two
+		minLen := len(prefix)
+		if depth < minLen {
+			minLen = depth
+		}
+		return binID[:minLen] == prefix[:minLen]
+	}
+
+	// Main prefix match check
+	matches := binID[:depth] == prefix
+
+	return matches
 }
 
 // IsPresent checks if the KademliaID is present in the bucket

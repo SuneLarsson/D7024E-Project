@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -123,7 +124,7 @@ func TestRemoveFromBucket(t *testing.T) {
 
 	// Set bucket split parameter
 	rt := watchingNode.RoutingTable
-	rt.buckets[0].b = 1
+	//rt.buckets[0].b = 1
 
 	// Add nodes in sequence, with time to stabilize
 	nodeA.JoinNetwork(&watchingNode.Self)
@@ -175,6 +176,152 @@ func TestRemoveFromBucket(t *testing.T) {
 	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeB.Self.ID), "nodeB should be the least-recently seen node of bucket 0")
 	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should contain nodeB")
 	assert.True(t, rt.buckets[0].IsPresent(nodeD.Self.ID), "Bucket 0 should contain nodeD")
+
+	ReloadConfig()
+}
+
+// TestGoodRoutingTable
+func TestGoodRoutingTable(t *testing.T) {
+
+	configMutex.Lock()
+	K = 2
+	BETA = 2
+	configMutex.Unlock()
+
+	// Create network with 0 drop rate
+	sim := NewSimulatedNetwork(0, 0)
+
+	// Create nodes
+	watchingNode := NewTestKademliaNodeWithID(NewKademliaID("0000000000000000000000000000000000000000"), "watching", sim)
+	nodeA := NewTestKademliaNodeWithID(NewKademliaID("1000000000000000000000000000000000000000"), "nodeA", sim)
+	nodeB := NewTestKademliaNodeWithID(NewKademliaID("0800000000000000000000000000000000000000"), "nodeB", sim)
+	nodeC := NewTestKademliaNodeWithID(NewKademliaID("8800000000000000000000000000000000000000"), "nodeC", sim)
+	nodeD := NewTestKademliaNodeWithID(NewKademliaID("9000000000000000000000000000000000000000"), "nodeD", sim)
+	nodeE := NewTestKademliaNodeWithID(NewKademliaID("a000000000000000000000000000000000000000"), "nodeE", sim)
+	nodeF := NewTestKademliaNodeWithID(NewKademliaID("c000000000000000000000000000000000000000"), "nodeF", sim)
+
+	// Give time for network setup
+	time.Sleep(200 * time.Millisecond)
+
+	// Set bucket split parameter
+	rt := watchingNode.RoutingTable
+
+	// Add nodes in sequence, with time to stabilize
+	nodeA.JoinNetwork(&watchingNode.Self)
+	time.Sleep(100 * time.Millisecond)
+
+	nodeB.JoinNetwork(&watchingNode.Self)
+	time.Sleep(100 * time.Millisecond)
+
+	nodeC.JoinNetwork(&watchingNode.Self)
+	time.Sleep(100 * time.Millisecond)
+	//fmt.Println(rt.PrintTree())
+	fmt.Println("------------------------------------------------")
+
+	// Verify first state
+	assert.Equal(t, 2, len(rt.buckets), "Should have exactly 2 buckets")
+	assert.True(t, rt.buckets[0].depth == rt.buckets[1].depth && rt.buckets[0].depth == 1, "The buckets depth should be 1, is "+strconv.Itoa(rt.buckets[0].depth))
+	assert.True(t, rt.buckets[1].IsPresent(nodeA.Self.ID) && rt.buckets[1].IsPresent(nodeB.Self.ID), "Bucket 1 should contain nodeA and nodeB")
+	assert.True(t, rt.buckets[1].Len() == 2, "Bucket 1 should contain 2 nodes")
+	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeA.Self.ID), "nodeA should be the least-recently seen node of bucket 1")
+	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should contain nodeC")
+
+	rt.AddContact(nodeD.Self)
+	time.Sleep(100 * time.Millisecond)
+	//fmt.Println(rt.PrintTree())
+	fmt.Println("------------------------------------------------")
+
+	// Verify state
+	assert.Equal(t, 2, len(rt.buckets), "Should have exactly 2 buckets")
+	assert.True(t, rt.buckets[0].depth == rt.buckets[1].depth && rt.buckets[0].depth == 1, "The buckets depth should be 1, is", strconv.Itoa(rt.buckets[0].depth))
+	assert.True(t, rt.buckets[1].IsPresent(nodeA.Self.ID) && rt.buckets[1].IsPresent(nodeB.Self.ID), "Bucket 1 should contain nodeA and nodeB")
+	assert.True(t, rt.buckets[1].Len() == 2, "Bucket 1 should contain 2 nodes")
+	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeA.Self.ID), "nodeA should be the least-recently seen node of bucket 1")
+	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID) && rt.buckets[0].IsPresent(nodeD.Self.ID), "Bucket 0 should contain nodeC and nodeD")
+	assert.True(t, rt.buckets[0].Len() == 2, "Bucket 0 should contain 2 nodes")
+	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeC.Self.ID), "nodeC should be the least-recently seen node of bucket 0")
+
+	rt.AddContact(nodeE.Self)
+	time.Sleep(100 * time.Millisecond)
+	//fmt.Println(rt.PrintTree())
+	fmt.Println("------------------------------------------------")
+
+	// Verify state
+	assert.Equal(t, 2, len(rt.buckets), "Should have exactly 2 buckets")
+	assert.True(t, rt.buckets[0].depth == rt.buckets[1].depth && rt.buckets[0].depth == 1, "The buckets depth should be 1, is", strconv.Itoa(rt.buckets[0].depth))
+	assert.True(t, rt.buckets[1].IsPresent(nodeA.Self.ID) && rt.buckets[1].IsPresent(nodeB.Self.ID), "Bucket 1 should contain nodeA and nodeB")
+	assert.True(t, rt.buckets[1].Len() == 2, "Bucket 1 should contain 2 nodes")
+	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeA.Self.ID), "nodeA should be the least-recently seen node of bucket 1")
+	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID) && rt.buckets[0].IsPresent(nodeD.Self.ID), "Bucket 0 should contain nodeC and nodeD")
+	assert.True(t, rt.buckets[0].Len() == 2, "Bucket 0 should contain 2 nodes")
+	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeD.Self.ID), "nodeD should be the least-recently seen node of bucket 0")
+	assert.False(t, rt.buckets[0].IsPresent(nodeE.Self.ID), "Bucket 0 should not contain nodeE")
+
+	rt.AddContact(nodeF.Self)
+	time.Sleep(200 * time.Millisecond)
+	//fmt.Println(rt.PrintTree())
+	fmt.Println("------------------------------------------------")
+
+	// Verify state
+	assert.Equal(t, 3, len(rt.buckets), "Should have exactly 3 buckets")
+	assert.True(t, rt.buckets[2].IsPresent(nodeA.Self.ID) && rt.buckets[2].IsPresent(nodeB.Self.ID), "Bucket 2 should contain nodeA and nodeB")
+	assert.True(t, rt.buckets[2].Len() == 2, "Bucket 2 should contain 2 nodes")
+	assert.True(t, rt.buckets[2].list.Back().Value.(Contact).ID.Equals(nodeA.Self.ID), "nodeA should be the least-recently seen node of bucket 2")
+	assert.True(t, rt.buckets[1].IsPresent(nodeC.Self.ID) && rt.buckets[1].IsPresent(nodeD.Self.ID), "Bucket 1 should contain nodeC and nodeD")
+	assert.True(t, rt.buckets[1].Len() == 2, "Bucket 1 should contain 2 nodes")
+	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeD.Self.ID), "nodeD should be the least-recently seen node of bucket 1")
+	assert.True(t, rt.buckets[0].IsPresent(nodeF.Self.ID), "Bucket 0 should contain nodeF")
+	assert.True(t, rt.buckets[0].Len() == 1, "Bucket 0 should contain 1 node")
+
+	rt.AddContact(nodeE.Self)
+	time.Sleep(200 * time.Millisecond)
+	//fmt.Println(rt.PrintTree())
+	fmt.Println("------------------------------------------------")
+
+	// Verify state
+	assert.Equal(t, 3, len(rt.buckets), "Should have exactly 3 buckets")
+	assert.True(t, rt.buckets[2].IsPresent(nodeA.Self.ID) && rt.buckets[2].IsPresent(nodeB.Self.ID), "Bucket 2 should contain nodeA and nodeB")
+	assert.True(t, rt.buckets[2].Len() == 2, "Bucket 2 should contain 2 nodes")
+	assert.True(t, rt.buckets[2].list.Back().Value.(Contact).ID.Equals(nodeA.Self.ID), "nodeA should be the least-recently seen node of bucket 2")
+	assert.True(t, rt.buckets[1].IsPresent(nodeC.Self.ID) && rt.buckets[1].IsPresent(nodeD.Self.ID), "Bucket 1 should contain nodeC and nodeD")
+	assert.True(t, rt.buckets[1].Len() == 2, "Bucket 1 should contain 2 nodes")
+	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeC.Self.ID), "nodeC should be the least-recently seen node of bucket 1")
+	assert.True(t, rt.buckets[0].IsPresent(nodeF.Self.ID), "Bucket 0 should contain nodeF")
+	assert.True(t, rt.buckets[0].Len() == 1, "Bucket 0 should contain 1 node")
+
+	delete(sim.nodes, "nodeD")
+
+	rt.AddContact(nodeE.Self)
+	time.Sleep(200 * time.Millisecond)
+	//fmt.Println(rt.PrintTree())
+	fmt.Println("------------------------------------------------")
+
+	// Verify state
+	assert.Equal(t, 3, len(rt.buckets), "Should have exactly 3 buckets")
+	assert.True(t, rt.buckets[2].IsPresent(nodeA.Self.ID) && rt.buckets[2].IsPresent(nodeB.Self.ID), "Bucket 2 should contain nodeA and nodeB")
+	assert.True(t, rt.buckets[2].Len() == 2, "Bucket 2 should contain 2 nodes")
+	assert.True(t, rt.buckets[2].list.Back().Value.(Contact).ID.Equals(nodeA.Self.ID), "nodeA should be the least-recently seen node of bucket 2")
+	assert.True(t, rt.buckets[1].IsPresent(nodeC.Self.ID) && rt.buckets[1].IsPresent(nodeD.Self.ID), "Bucket 1 should contain nodeC and nodeD")
+	assert.True(t, rt.buckets[1].Len() == 2, "Bucket 1 should contain 2 nodes")
+	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeD.Self.ID), "nodeD should be the least-recently seen node of bucket 1")
+	assert.True(t, rt.buckets[0].IsPresent(nodeF.Self.ID), "Bucket 0 should contain nodeF")
+	assert.True(t, rt.buckets[0].Len() == 1, "Bucket 0 should contain 1 node")
+
+	rt.AddContact(nodeE.Self)
+	time.Sleep(200 * time.Millisecond)
+	//fmt.Println(rt.PrintTree())
+	fmt.Println("------------------------------------------------")
+
+	// Verify state
+	assert.Equal(t, 3, len(rt.buckets), "Should have exactly 3 buckets")
+	assert.True(t, rt.buckets[2].IsPresent(nodeA.Self.ID) && rt.buckets[2].IsPresent(nodeB.Self.ID), "Bucket 2 should contain nodeA and nodeB")
+	assert.True(t, rt.buckets[2].Len() == 2, "Bucket 2 should contain 2 nodes")
+	assert.True(t, rt.buckets[2].list.Back().Value.(Contact).ID.Equals(nodeA.Self.ID), "nodeA should be the least-recently seen node of bucket 2")
+	assert.True(t, rt.buckets[1].IsPresent(nodeC.Self.ID) && rt.buckets[1].IsPresent(nodeE.Self.ID), "Bucket 1 should contain nodeC and nodeE")
+	assert.True(t, rt.buckets[1].Len() == 2, "Bucket 1 should contain 2 nodes")
+	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeC.Self.ID), "nodeC should be the least-recently seen node of bucket 1")
+	assert.True(t, rt.buckets[0].IsPresent(nodeF.Self.ID), "Bucket 0 should contain nodeF")
+	assert.True(t, rt.buckets[0].Len() == 1, "Bucket 0 should contain 1 node")
 
 	ReloadConfig()
 }
