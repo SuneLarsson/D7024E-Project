@@ -21,23 +21,27 @@ func TestGoodBehaviour(t *testing.T) {
 	os.Setenv("ALPHA", "3600")
 	os.Setenv("ALPHA", "86400")
 	os.Setenv("ALPHA", "3600")
+	time.Sleep(100 * time.Millisecond)
+
 	myServer := server.NewServer(server.Default_socket, "", 9000)
+	time.Sleep(100 * time.Millisecond)
+
 	exitCh := make(chan string, 1)
 	go func() {
 		myServer.Listen()
 		exitCh <- "leaving"
 	}()
 
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(400 * time.Millisecond)
 
 	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
 	server2 := server.NewServer(socketPath, "127.0.0.1:9000", 9001)
-	server2.SetRestPort(8100)
+	server2.SetRestPort(8500)
 	go func() {
 		server2.Listen()
 	}()
 
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(400 * time.Millisecond)
 
 	// Create a pipe to capture output
 	r, w, _ := os.Pipe()

@@ -75,7 +75,7 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 	kademlia := &Kademlia{
 		Self:         contact,
 		mapManagerCh: make(chan MapRequest),
-		DataStore:    *storage.NewStorage(ttl),
+		DataStore:    *storage.NewStorage(ttl, int64(tExpire)),
 		keyStore:     make(map[string]chan string),
 		alpha:        ALPHA,
 		beta:         BETA,

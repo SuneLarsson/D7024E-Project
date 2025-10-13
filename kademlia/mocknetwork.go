@@ -87,7 +87,7 @@ func NewTestKademliaNodeWithID(id *KademliaID, address string, sim *SimulatedNet
 	// 1. Create the Kademlia struct instance first.
 	kademliaNode := &Kademlia{
 		Self:         contact,
-		DataStore:    *storage.NewStorage(ttl),
+		DataStore:    *storage.NewStorage(ttl, int64(tExpire)),
 		mapManagerCh: make(chan MapRequest),
 		keyStore:     make(map[string]chan string),
 		ttl:          ttl,

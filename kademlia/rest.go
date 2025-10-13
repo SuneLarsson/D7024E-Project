@@ -13,6 +13,7 @@ func (k *Kademlia) StartRESTServer(addr string) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/objects", k.handleObjects)
 	mux.HandleFunc("/objects/", k.handleObjectByHash)
+	mux.HandleFunc("/routing", k.handleRouting)
 
 	log.Printf("Starting REST server at %s\n", addr)
 	k.httpMutex.Lock()
@@ -72,4 +73,15 @@ func (k *Kademlia) handleObjectByHash(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(*value))
 
+}
+
+func (k *Kademlia) handleRouting(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(k.RoutingTable.String()))
 }
