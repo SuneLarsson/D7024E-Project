@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
+	"os/exec"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -188,4 +192,143 @@ func TestLargeNetworkLookup(t *testing.T) {
 
 		})
 	}
+}
+
+/*func TestShowRoutingTable(t *testing.T) {
+
+	for i := 1; i <= 20; i++ {
+		go printRoutingTable(i)
+	}
+	time.Sleep(1 * time.Minute)
+	t.Error("Test")
+}*/
+
+func printRoutingTable(BETA int) {
+	sim := NewSimulatedNetwork(0, 0)
+	watchingNode := NewTestKademliaNodeWithID(NewKademliaID("0000000000000000000000000000000000000000"), "watching", sim)
+
+	rt := watchingNode.RoutingTable
+	rt.buckets[0].b = BETA
+
+	for i := 0; i < 1000; i++ {
+		node := NewTestKademliaNode("node"+strconv.Itoa(i), sim)
+		rt.AddContact(node.Self)
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	rt.bucketsMutex.Lock()
+
+	tree := buildTree(rt.buckets)
+
+	rt.bucketsMutex.Unlock()
+
+	exportToDot(tree, BETA)
+
+}
+
+type TreeNode struct {
+	Prefix string
+	Length int
+	Left   *TreeNode
+	Right  *TreeNode
+}
+
+func buildTree(buckets []*bucket) *TreeNode {
+	var root *TreeNode
+	for _, b := range buckets {
+		length := 0
+		if b.list != nil {
+			length = b.list.Len()
+		}
+		root = insertNode(root, b.prefix, length)
+	}
+	return root
+}
+
+func insertNode(root *TreeNode, prefix string, length int) *TreeNode {
+	if root == nil {
+		root = &TreeNode{}
+	}
+
+	if prefix == "" {
+		// Leaf node
+		root.Prefix = prefix
+		root.Length = length
+		return root
+	}
+
+	current := root
+	for i, ch := range prefix {
+		if ch == '0' {
+			if current.Left == nil {
+				current.Left = &TreeNode{}
+			}
+			if i == len(prefix)-1 {
+				current.Left.Prefix = prefix
+				current.Left.Length = length
+			}
+			current = current.Left
+		} else if ch == '1' {
+			if current.Right == nil {
+				current.Right = &TreeNode{}
+			}
+			if i == len(prefix)-1 {
+				current.Right.Prefix = prefix
+				current.Right.Length = length
+			}
+			current = current.Right
+		}
+	}
+	return root
+}
+
+func exportToDot(root *TreeNode, betaValue int) error {
+	_, err := os.Stat("images")
+	if err != nil {
+		os.Mkdir("images", 0755)
+	}
+	filename := "images/" + strconv.Itoa(betaValue)
+	f, err := os.Create(filename + ".dot")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Start DOT graph definition
+	fmt.Fprintf(f, "digraph G {\n")
+	fmt.Fprintf(f, "label=\"BETA = %d\";\nlabelloc=top;\nfontsize=20;\n", betaValue)
+	fmt.Fprintf(f, "node [shape=circle, style=filled, fillcolor=lightgrey];\n")
+
+	// Recursive function to write nodes and edges
+	var writeEdges func(node *TreeNode, id string)
+	writeEdges = func(node *TreeNode, id string) {
+		if node == nil {
+			return
+		}
+
+		label := node.Prefix
+		if node.Prefix != "" {
+			label = fmt.Sprintf("%s (%d)", node.Prefix, node.Length)
+		}
+		fmt.Fprintf(f, "%s [label=\"%s\"];\n", id, label)
+
+		if node.Left != nil {
+			leftID := fmt.Sprintf("%s0", id)
+			fmt.Fprintf(f, "%s -> %s [label=\"0\"];\n", id, leftID)
+			writeEdges(node.Left, leftID)
+		}
+		if node.Right != nil {
+			rightID := fmt.Sprintf("%s1", id)
+			fmt.Fprintf(f, "%s -> %s [label=\"1\"];\n", id, rightID)
+			writeEdges(node.Right, rightID)
+		}
+	}
+
+	writeEdges(root, "root")
+	fmt.Fprintf(f, "}\n")
+	f.Close()
+
+	// Generate PNG (requires Graphviz installed)
+	cmd := exec.Command("dot", "-Tpng", filename+".dot", "-o", filename+".png")
+	return cmd.Run()
 }

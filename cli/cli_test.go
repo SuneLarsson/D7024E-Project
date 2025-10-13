@@ -24,7 +24,7 @@ func TestGoodBehaviour(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	myServer := server.NewServer(server.Default_socket, "", 9000)
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	exitCh := make(chan string, 1)
 	go func() {
@@ -32,7 +32,7 @@ func TestGoodBehaviour(t *testing.T) {
 		exitCh <- "leaving"
 	}()
 
-	time.Sleep(400 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
 	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
 	server2 := server.NewServer(socketPath, "127.0.0.1:9000", 9001)

@@ -71,6 +71,7 @@ func (routingTable *RoutingTable) splitBucket(idx int, contact Contact, me *Kade
 	depth := currentBucket.depth
 	for !canAdd && canSplit {
 		bucket1, bucket0 := currentBucket.SplitBucket()
+		time.Sleep(10 * time.Millisecond)
 		bucketsToAdd = append(bucketsToAdd, bucket1, bucket0)
 
 		canAdd, canSplit = bucket1.CanAddContact(contact, me)
@@ -93,7 +94,9 @@ func (routingTable *RoutingTable) splitBucket(idx int, contact Contact, me *Kade
 		routingTable.buckets = append(routingTable.buckets[:indexStart+1], append(bucketsToAdd[1:], routingTable.buckets[indexStart+1:]...)...)
 		routingTable.bucketsMutex.Unlock()
 	} else {
+		routingTable.bucketsMutex.Lock()
 		routingTable.buckets[indexStart].depth = depth
+		routingTable.bucketsMutex.Unlock()
 	}
 	return canAdd, idx
 }

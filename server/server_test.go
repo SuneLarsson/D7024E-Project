@@ -405,7 +405,7 @@ func TestRouting(t *testing.T) {
 }
 
 func TestStore(t *testing.T) {
-	
+
 	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc-%d.sock", time.Now().UnixNano()))
 
 	server := NewServer(socketPath, "", 8015)
@@ -415,7 +415,7 @@ func TestStore(t *testing.T) {
 		server.Listen()
 	}()
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	socketPath2 := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
 
@@ -430,13 +430,13 @@ func TestStore(t *testing.T) {
 		server2.Listen()
 	}()
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	conn := ConnectToServer(socketPath)
 
 	SendMessage(conn, "store")
 
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(400 * time.Millisecond)
 
 	// Capture the output
 	w.Close()

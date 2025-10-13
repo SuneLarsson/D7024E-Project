@@ -17,7 +17,7 @@ func setupTestNode(addr string, sim *SimulatedNetwork) *Kademlia {
 
 func TestNewKademliaNode(t *testing.T) {
 	// This one opens a UDP socket, so just check it creates without error
-	node, err := NewKademliaNode("127.0.0.1", 9001)
+	node, err := NewKademliaNode("127.0.0.1", 9002)
 	require.NoError(t, err, "NewKademliaNode should succeed")
 	assert.NotNil(t, node.Network, "Network should be set")
 	assert.NotNil(t, node.RoutingTable, "RoutingTable should be set")
@@ -139,11 +139,13 @@ func TestRemoveFromBucket(t *testing.T) {
 	fmt.Println("------------------------------------------------")
 
 	// Verify first state
+	rt.bucketsMutex.RLock()
 	assert.Equal(t, 2, len(rt.buckets), "Should have exactly 2 buckets")
 	assert.True(t, rt.buckets[1].IsPresent(nodeA.Self.ID), "Bucket 1 should contain nodeA")
 	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should contain nodeB")
 	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeB.Self.ID), "nodeB should be the least-recently seen node of bucket 0")
 	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should contain nodeC")
+	rt.bucketsMutex.RUnlock()
 
 	// Try to add nodeD (should trigger PING to nodeC)
 	rt.AddContact(nodeD.Self)
@@ -152,12 +154,14 @@ func TestRemoveFromBucket(t *testing.T) {
 	fmt.Println(rt.PrintTree())
 	fmt.Println("------------------------------------------------")
 	// Verify second state
+	rt.bucketsMutex.RLock()
 	assert.Equal(t, 2, len(rt.buckets), "Should still have 2 buckets")
 	assert.Equal(t, 2, rt.buckets[0].Len(), "Bucket 0 should have 2 nodes")
 	assert.Equal(t, 1, rt.buckets[1].Len(), "Bucket 1 should have 1 node")
 	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeC.Self.ID), "nodeC should be the least-recently seen node of bucket 0")
 	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should contain nodeB")
 	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should contain nodeC")
+	rt.bucketsMutex.RUnlock()
 
 	// Shutdown nodeC and try to add nodeD again
 	delete(sim.nodes, "nodeC")
@@ -170,12 +174,14 @@ func TestRemoveFromBucket(t *testing.T) {
 	fmt.Println("------------------------------------------------")
 
 	// Verify final state
+	rt.bucketsMutex.RLock()
 	assert.True(t, rt.buckets[0].IsPresent(nodeD.Self.ID), "Bucket 0 should now contain nodeD")
 	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should still contain nodeB")
 	assert.False(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should no longer contain nodeC")
 	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeB.Self.ID), "nodeB should be the least-recently seen node of bucket 0")
 	assert.True(t, rt.buckets[0].IsPresent(nodeB.Self.ID), "Bucket 0 should contain nodeB")
 	assert.True(t, rt.buckets[0].IsPresent(nodeD.Self.ID), "Bucket 0 should contain nodeD")
+	rt.bucketsMutex.RUnlock()
 
 	ReloadConfig()
 }
@@ -219,12 +225,14 @@ func TestGoodRoutingTable(t *testing.T) {
 	fmt.Println("------------------------------------------------")
 
 	// Verify first state
+	rt.bucketsMutex.RLock()
 	assert.Equal(t, 2, len(rt.buckets), "Should have exactly 2 buckets")
 	assert.True(t, rt.buckets[0].depth == rt.buckets[1].depth && rt.buckets[0].depth == 1, "The buckets depth should be 1, is "+strconv.Itoa(rt.buckets[0].depth))
 	assert.True(t, rt.buckets[1].IsPresent(nodeA.Self.ID) && rt.buckets[1].IsPresent(nodeB.Self.ID), "Bucket 1 should contain nodeA and nodeB")
 	assert.True(t, rt.buckets[1].Len() == 2, "Bucket 1 should contain 2 nodes")
 	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeA.Self.ID), "nodeA should be the least-recently seen node of bucket 1")
 	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID), "Bucket 0 should contain nodeC")
+	rt.bucketsMutex.RUnlock()
 
 	rt.AddContact(nodeD.Self)
 	time.Sleep(100 * time.Millisecond)
@@ -232,6 +240,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	fmt.Println("------------------------------------------------")
 
 	// Verify state
+	rt.bucketsMutex.RLock()
 	assert.Equal(t, 2, len(rt.buckets), "Should have exactly 2 buckets")
 	assert.True(t, rt.buckets[0].depth == rt.buckets[1].depth && rt.buckets[0].depth == 1, "The buckets depth should be 1, is", strconv.Itoa(rt.buckets[0].depth))
 	assert.True(t, rt.buckets[1].IsPresent(nodeA.Self.ID) && rt.buckets[1].IsPresent(nodeB.Self.ID), "Bucket 1 should contain nodeA and nodeB")
@@ -240,6 +249,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	assert.True(t, rt.buckets[0].IsPresent(nodeC.Self.ID) && rt.buckets[0].IsPresent(nodeD.Self.ID), "Bucket 0 should contain nodeC and nodeD")
 	assert.True(t, rt.buckets[0].Len() == 2, "Bucket 0 should contain 2 nodes")
 	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeC.Self.ID), "nodeC should be the least-recently seen node of bucket 0")
+	rt.bucketsMutex.RUnlock()
 
 	rt.AddContact(nodeE.Self)
 	time.Sleep(100 * time.Millisecond)
@@ -247,6 +257,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	fmt.Println("------------------------------------------------")
 
 	// Verify state
+	rt.bucketsMutex.RLock()
 	assert.Equal(t, 2, len(rt.buckets), "Should have exactly 2 buckets")
 	assert.True(t, rt.buckets[0].depth == rt.buckets[1].depth && rt.buckets[0].depth == 1, "The buckets depth should be 1, is", strconv.Itoa(rt.buckets[0].depth))
 	assert.True(t, rt.buckets[1].IsPresent(nodeA.Self.ID) && rt.buckets[1].IsPresent(nodeB.Self.ID), "Bucket 1 should contain nodeA and nodeB")
@@ -256,6 +267,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	assert.True(t, rt.buckets[0].Len() == 2, "Bucket 0 should contain 2 nodes")
 	assert.True(t, rt.buckets[0].list.Back().Value.(Contact).ID.Equals(nodeD.Self.ID), "nodeD should be the least-recently seen node of bucket 0")
 	assert.False(t, rt.buckets[0].IsPresent(nodeE.Self.ID), "Bucket 0 should not contain nodeE")
+	rt.bucketsMutex.RUnlock()
 
 	rt.AddContact(nodeF.Self)
 	time.Sleep(200 * time.Millisecond)
@@ -263,6 +275,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	fmt.Println("------------------------------------------------")
 
 	// Verify state
+	rt.bucketsMutex.RLock()
 	assert.Equal(t, 3, len(rt.buckets), "Should have exactly 3 buckets")
 	assert.True(t, rt.buckets[2].IsPresent(nodeA.Self.ID) && rt.buckets[2].IsPresent(nodeB.Self.ID), "Bucket 2 should contain nodeA and nodeB")
 	assert.True(t, rt.buckets[2].Len() == 2, "Bucket 2 should contain 2 nodes")
@@ -272,6 +285,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeD.Self.ID), "nodeD should be the least-recently seen node of bucket 1")
 	assert.True(t, rt.buckets[0].IsPresent(nodeF.Self.ID), "Bucket 0 should contain nodeF")
 	assert.True(t, rt.buckets[0].Len() == 1, "Bucket 0 should contain 1 node")
+	rt.bucketsMutex.RUnlock()
 
 	rt.AddContact(nodeE.Self)
 	time.Sleep(200 * time.Millisecond)
@@ -279,6 +293,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	fmt.Println("------------------------------------------------")
 
 	// Verify state
+	rt.bucketsMutex.RLock()
 	assert.Equal(t, 3, len(rt.buckets), "Should have exactly 3 buckets")
 	assert.True(t, rt.buckets[2].IsPresent(nodeA.Self.ID) && rt.buckets[2].IsPresent(nodeB.Self.ID), "Bucket 2 should contain nodeA and nodeB")
 	assert.True(t, rt.buckets[2].Len() == 2, "Bucket 2 should contain 2 nodes")
@@ -288,6 +303,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeC.Self.ID), "nodeC should be the least-recently seen node of bucket 1")
 	assert.True(t, rt.buckets[0].IsPresent(nodeF.Self.ID), "Bucket 0 should contain nodeF")
 	assert.True(t, rt.buckets[0].Len() == 1, "Bucket 0 should contain 1 node")
+	rt.bucketsMutex.RUnlock()
 
 	delete(sim.nodes, "nodeD")
 
@@ -297,6 +313,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	fmt.Println("------------------------------------------------")
 
 	// Verify state
+	rt.bucketsMutex.RLock()
 	assert.Equal(t, 3, len(rt.buckets), "Should have exactly 3 buckets")
 	assert.True(t, rt.buckets[2].IsPresent(nodeA.Self.ID) && rt.buckets[2].IsPresent(nodeB.Self.ID), "Bucket 2 should contain nodeA and nodeB")
 	assert.True(t, rt.buckets[2].Len() == 2, "Bucket 2 should contain 2 nodes")
@@ -306,6 +323,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeD.Self.ID), "nodeD should be the least-recently seen node of bucket 1")
 	assert.True(t, rt.buckets[0].IsPresent(nodeF.Self.ID), "Bucket 0 should contain nodeF")
 	assert.True(t, rt.buckets[0].Len() == 1, "Bucket 0 should contain 1 node")
+	rt.bucketsMutex.RUnlock()
 
 	rt.AddContact(nodeE.Self)
 	time.Sleep(200 * time.Millisecond)
@@ -313,6 +331,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	fmt.Println("------------------------------------------------")
 
 	// Verify state
+	rt.bucketsMutex.RLock()
 	assert.Equal(t, 3, len(rt.buckets), "Should have exactly 3 buckets")
 	assert.True(t, rt.buckets[2].IsPresent(nodeA.Self.ID) && rt.buckets[2].IsPresent(nodeB.Self.ID), "Bucket 2 should contain nodeA and nodeB")
 	assert.True(t, rt.buckets[2].Len() == 2, "Bucket 2 should contain 2 nodes")
@@ -322,6 +341,7 @@ func TestGoodRoutingTable(t *testing.T) {
 	assert.True(t, rt.buckets[1].list.Back().Value.(Contact).ID.Equals(nodeC.Self.ID), "nodeC should be the least-recently seen node of bucket 1")
 	assert.True(t, rt.buckets[0].IsPresent(nodeF.Self.ID), "Bucket 0 should contain nodeF")
 	assert.True(t, rt.buckets[0].Len() == 1, "Bucket 0 should contain 1 node")
+	rt.bucketsMutex.RUnlock()
 
 	ReloadConfig()
 }

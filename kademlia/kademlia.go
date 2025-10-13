@@ -159,14 +159,19 @@ func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 	//4. Refresh bucket further away than closest
 	// neighbor
 	closest := kademlia.RoutingTable.FindClosestContacts(kademlia.Self.ID, 1)
+	kademlia.RoutingTable.bucketsMutex.Lock()
+	limit := len(kademlia.RoutingTable.buckets)
+	kademlia.RoutingTable.bucketsMutex.Unlock()
 	bucketIndex := kademlia.RoutingTable.getBucketIndex(closest[0].ID)
-	for i := bucketIndex + 1; i < len(kademlia.RoutingTable.buckets); i++ {
+	for i := bucketIndex + 1; i < limit; i++ {
 		kademlia.RefreshBucket(i)
 	}
 }
 
 func (kademlia *Kademlia) RefreshBucket(idx int) {
+	kademlia.RoutingTable.bucketsMutex.Lock()
 	contact := kademlia.RoutingTable.buckets[idx].getContactForBucketRefresh()
+	kademlia.RoutingTable.bucketsMutex.Unlock()
 	if contact.ID != nil {
 		kademlia.IterativeFindNode(contact.ID, ALPHA, kademlia.k)
 	}

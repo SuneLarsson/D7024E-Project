@@ -2,7 +2,6 @@ package kademlia
 
 import (
 	"container/list"
-	"fmt"
 	"math/rand"
 	"strings"
 	"sync"
@@ -49,7 +48,6 @@ func (bucket *bucket) AddContact(contact Contact) {
 		configMutex.Lock()
 		defer configMutex.Unlock()
 		if bucket.list.Len() < K {
-			fmt.Println("Pushing", contact.Address, "to FRONT")
 			bucket.list.PushFront(contact)
 		}
 	} else {
@@ -149,7 +147,6 @@ func (bucket *bucket) IsPresent(id *KademliaID) bool {
 // SplitBucket splits a bucket into two different buckets by creating a new one and returning both
 func (bucket *bucket) SplitBucket() (*bucket, *bucket) {
 	bucket.mu.Lock()
-	defer bucket.mu.Unlock()
 	bucket1 := newBucket(bucket.prefix+"1", bucket.depth+1)
 	bucket1.b = bucket.b
 	bucket0 := newBucket(bucket.prefix+"0", bucket.depth+1)
@@ -163,6 +160,7 @@ func (bucket *bucket) SplitBucket() (*bucket, *bucket) {
 			bucket0.list.PushFront(e.Value.(Contact))
 		}
 	}
+	bucket.mu.Unlock()
 	return bucket1, bucket0
 }
 
