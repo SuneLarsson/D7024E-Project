@@ -242,7 +242,7 @@ func (kademlia *Kademlia) PeriodicReplication(interval time.Duration) {
 // Shutdown gracefully
 func (kademlia *Kademlia) Shutdown() {
 
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		kademlia.done <- struct{}{}
 	}
 	defer close(kademlia.done)

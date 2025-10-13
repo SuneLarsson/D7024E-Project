@@ -180,7 +180,7 @@ func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (r
 		}(contact)
 	}
 
-	for range closest {
+	for i := 0; i < len(closest); i++ {
 		if <-chStore {
 			successCount++
 		}

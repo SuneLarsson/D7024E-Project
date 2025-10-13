@@ -18,7 +18,7 @@ var routingCmd = &cobra.Command{
 	Long:  "Show routing table of node",
 	Run: func(cmd *cobra.Command, args []string) {
 		response := routing()
-		fmt.Println(response)
+		fmt.Fprintln(output, response)
 	},
 }
 

@@ -17,7 +17,7 @@ var getCmd = &cobra.Command{
 	Long:  "Get a value",
 	Run: func(cmd *cobra.Command, args []string) {
 		response := get(args[0])
-		fmt.Println(response)
+		fmt.Fprintln(output, response)
 	},
 }
 

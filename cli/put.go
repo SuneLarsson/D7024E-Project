@@ -19,7 +19,7 @@ var putCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		value := strings.Join(args, " ")
 		response := put(value)
-		fmt.Println("Value stored at key", response)
+		fmt.Fprintln(output, "Value stored at key", response)
 	},
 }
 

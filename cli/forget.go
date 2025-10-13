@@ -17,7 +17,7 @@ var forgetCmd = &cobra.Command{
 	Long:  "Forget a value",
 	Run: func(cmd *cobra.Command, args []string) {
 		response := forget(args[0])
-		fmt.Println(response)
+		fmt.Fprintln(output, response)
 	},
 }
 

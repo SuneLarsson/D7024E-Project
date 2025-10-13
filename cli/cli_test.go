@@ -12,6 +12,8 @@ import (
 )
 
 func TestGoodBehaviour(t *testing.T) {
+	old := output
+
 	os.Setenv("ALPHA", "3")
 	os.Setenv("ALPHA", "20")
 	os.Setenv("ALPHA", "20")
@@ -19,7 +21,7 @@ func TestGoodBehaviour(t *testing.T) {
 	os.Setenv("ALPHA", "3600")
 	os.Setenv("ALPHA", "86400")
 	os.Setenv("ALPHA", "3600")
-	myServer := server.NewServer(server.Default_socket, "", 8000)
+	myServer := server.NewServer(server.Default_socket, "", 9000)
 	exitCh := make(chan string, 1)
 	go func() {
 		myServer.Listen()
@@ -29,7 +31,7 @@ func TestGoodBehaviour(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	socketPath := filepath.Join(os.TempDir(), fmt.Sprintf("test-svc2-%d.sock", time.Now().UnixNano()))
-	server2 := server.NewServer(socketPath, "127.0.0.1:8000", 8001)
+	server2 := server.NewServer(socketPath, "127.0.0.1:9000", 9001)
 	server2.SetRestPort(8100)
 	go func() {
 		server2.Listen()
@@ -37,14 +39,12 @@ func TestGoodBehaviour(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	old := os.Stdout
-
 	// Create a pipe to capture output
 	r, w, _ := os.Pipe()
-	os.Stdout = w
+	output = w
 
 	var buf bytes.Buffer
-	var output string
+	var outputStr string
 
 	// Testing the put command
 	os.Args = []string{"kademlia", "put", "Hello", "World"}
@@ -54,16 +54,16 @@ func TestGoodBehaviour(t *testing.T) {
 
 	buf.ReadFrom(r)
 	r.Close()
-	output = buf.String()
-	if strings.Contains(output, "Value not stored") {
-		fmt.Println(output)
+	outputStr = buf.String()
+	if strings.Contains(outputStr, "Value not stored") {
+		fmt.Println(outputStr)
 		t.Error("Value was not stored")
 	}
 
 	// Getting key from the put
 	key := ""
-	if output != "" {
-		splitOutput := strings.Split(output, " ")
+	if outputStr != "" {
+		splitOutput := strings.Split(outputStr, " ")
 		for i := len(splitOutput) - 1; i >= 0; i++ {
 			if splitOutput[i] != "" {
 				key = splitOutput[i]
@@ -72,7 +72,7 @@ func TestGoodBehaviour(t *testing.T) {
 		}
 	}
 	r, w, _ = os.Pipe()
-	os.Stdout = w
+	output = w
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -84,8 +84,8 @@ func TestGoodBehaviour(t *testing.T) {
 
 	buf.ReadFrom(r)
 	r.Close()
-	output = buf.String()
-	if !strings.Contains(output, "Hello World") {
+	outputStr = buf.String()
+	if !strings.Contains(outputStr, "Hello World") {
 		//fmt.Fprintln(old, "Output:"+output+"\nEndOutput")
 		t.Error("The value gotten is not the same as the value put")
 	}
@@ -93,7 +93,7 @@ func TestGoodBehaviour(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	r, w, _ = os.Pipe()
-	os.Stdout = w
+	output = w
 
 	// Testing the forget command
 	os.Args = []string{"kademlia", "forget", key}
@@ -102,13 +102,13 @@ func TestGoodBehaviour(t *testing.T) {
 	w.Close()
 	buf.ReadFrom(r)
 	r.Close()
-	output = buf.String()
-	if !strings.Contains(output, "This node will stop to refresh value assigned as "+key) {
+	outputStr = buf.String()
+	if !strings.Contains(outputStr, "This node will stop to refresh value assigned as "+key) {
 		t.Error("Error in message received when forgetting")
 	}
 
 	r, w, _ = os.Pipe()
-	os.Stdout = w
+	output = w
 
 	// Testing the routing command
 	os.Args = []string{"kademlia", "routing"}
@@ -117,12 +117,12 @@ func TestGoodBehaviour(t *testing.T) {
 	w.Close()
 	buf.ReadFrom(r)
 	r.Close()
-	output = buf.String()
-	if strings.Count(output, "contact") != 2 {
+	outputStr = buf.String()
+	if strings.Count(outputStr, "contact") != 2 {
 		t.Error("There should be only two contacts in my routing table, myServer and server2")
 	}
 
-	if strings.Count(output, "Bucket") != 1 {
+	if strings.Count(outputStr, "Bucket") != 1 {
 		t.Error("There should be only one bucket in my routing table")
 	}
 
@@ -137,7 +137,7 @@ func TestGoodBehaviour(t *testing.T) {
 	}
 
 	// Restore stdout
-	os.Stdout = old
+	output = old
 
 	server.SendMessage(server.ConnectToServer(socketPath), "exit")
 
