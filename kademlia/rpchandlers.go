@@ -8,19 +8,18 @@ import (
 	"net"
 )
 
+// HandleMessage updates the sender's contact information and dispatches the
+// incoming RPC message to the appropriate handler. Responses that are final are
+// forwarded to waiting goroutines via handleResponse, while requests are
+// processed and responded to immediately.
 func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
-	// Update the sender's address in the Contact
-	// kademlia.keyMutex.Lock()
-	// defer kademlia.keyMutex.Unlock()
+	// Update the sender's address in the Contact if the UDP address is known.
 	if addr != nil {
 		msg.From.Address = addr.String()
 	}
 
+	// Opportunistically add/update the sender in the routing table.
 	go kademlia.RoutingTable.AddContact(msg.From)
-	// kademlia.keyMutex.Unlock()
-
-	// fmt.Printf("Received message of type %s from %s\n", msg.Type, msg.From.Address)
-	// fmt.Printf("Message details: %+v\n", msg)
 
 	switch msg.Type {
 	case PING:
@@ -48,7 +47,8 @@ func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 	}
 }
 
-// General dispatch for responses that are "final"
+// handleResponse dispatches a terminal response message to the goroutine
+// waiting on the corresponding RPCID.
 func (k *Kademlia) handleResponse(msg Message) {
 	// fmt.Printf("Received response of type %s from %s\n", msg.Type, msg.From.Address)
 	dispatchRequest := MapRequest{
@@ -60,12 +60,16 @@ func (k *Kademlia) handleResponse(msg Message) {
 	addMapRequest(k, dispatchRequest)
 }
 
+// handlePing replies to a PING with a PONG directed at the sender.
 func (kademlia *Kademlia) handlePing(msg Message) {
 	// fmt.Printf("Received PING from %s\n", msg.From.Address)
 	pong := NewPongMessage(kademlia.Self, msg.RPCID, msg.From)
 	kademlia.Network.SendMessage(msg.From.Address, pong)
 }
 
+// handleRefresh attempts to refresh the TTL of the given key if present in the
+// local datapool by re-putting it. Responds with a boolean indicating whether
+// the refresh was performed.
 func (kademlia *Kademlia) handleRefresh(msg Message) {
 	key := &KademliaID{}
 
@@ -84,6 +88,9 @@ func (kademlia *Kademlia) handleRefresh(msg Message) {
 	kademlia.Network.SendMessage(msg.From.Address, response)
 }
 
+// handleStore stores the provided value locally, deriving the key as the SHA-1
+// hash of the value. A STORE_RESPONSE with the success flag is sent back to the
+// requester.
 func (kademlia *Kademlia) handleStore(msg Message) {
 	// fmt.Printf("Received STORE from %s\n", &msg.From)
 	var value string
@@ -107,7 +114,9 @@ func (kademlia *Kademlia) handleStore(msg Message) {
 	// Send STORE_RESPONSE back to the sender
 }
 
-// Handle FIND_VALUE
+// handleFindValue serves a FIND_VALUE request. If the target key is present
+// locally, the value is returned; otherwise, a list of closest contacts is
+// returned.
 func (kademlia *Kademlia) handleFindValue(msg Message) {
 	// fmt.Printf("Received FIND_VALUE from %s\n", &msg.From)
 	targetID := &KademliaID{}
@@ -132,6 +141,8 @@ func (kademlia *Kademlia) handleFindValue(msg Message) {
 
 }
 
+// handleFindNode serves a FIND_NODE request by returning the closest contacts
+// to the requested target ID.
 func (kademlia *Kademlia) handleFindNode(msg Message) {
 	// fmt.Printf("Received FIND_NODE from %s\n", &msg.From)
 	targetID := &KademliaID{}
