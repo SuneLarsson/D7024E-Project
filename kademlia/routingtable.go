@@ -8,8 +8,18 @@ import (
 	"time"
 )
 
+// bucketSize defines the maximum number of contacts a single bucket can hold.
 const bucketSize = 20
 
+// RoutingTable maintains the local node's view of the network.
+// It keeps a reference to the local contact (me), an ordered set of buckets
+// that partition the ID space, and an ops channel used to serialize routing
+// table mutations and queries.
+//
+// All modifying operations are funneled through the ops channel so that bucket
+// splits and contact additions happen in a single goroutine, avoiding races.
+// Lookups are served via the same channel to provide a consistent view.
+//
 // RoutingTable definition
 // keeps a refrence contact of me and an array of buckets
 type RoutingTable struct {
@@ -35,6 +45,9 @@ func NewRoutingTable(kademlia *Kademlia) *RoutingTable {
 	return routingTable
 }
 
+// run is the internal event loop that processes routing table operations
+// sent over the ops channel. It serializes bucket splits, contact additions,
+// and closest-contact queries in a single goroutine.
 func (routingTable *RoutingTable) run(kademlia *Kademlia) {
 	for req := range routingTable.ops {
 		switch req.requestType {
@@ -60,7 +73,10 @@ func (routingTable *RoutingTable) run(kademlia *Kademlia) {
 	}
 }
 
-// splitBucket splits the bucket at the index to try to accomodate for the contact
+// splitBucket splits the bucket at the given index to try to accommodate the
+// provided contact. It continues splitting as long as allowed by the split
+// policy, then returns whether the contact can be added and the final bucket
+// index where it fits (or the last attempted index when not addable).
 func (routingTable *RoutingTable) splitBucket(idx int, contact Contact, me *Kademlia) (bool, int) {
 	canAdd := false
 	canSplit := true
@@ -101,7 +117,8 @@ func (routingTable *RoutingTable) splitBucket(idx int, contact Contact, me *Kade
 	return canAdd, idx
 }
 
-// AddContact add a new contact to the correct Bucket
+// AddContact adds a new contact to the appropriate bucket by enqueuing a
+// request on the ops channel. The actual modification occurs in the run loop.
 func (routingTable *RoutingTable) AddContact(contact Contact) {
 	// bucketIndex := routingTable.getBucketIndex(contact.ID)
 	// bucket := routingTable.buckets[bucketIndex]
@@ -127,6 +144,9 @@ func (routingTable *RoutingTable) FindClosestContacts(target *KademliaID, count 
 	return contacts
 }
 
+// findClosestContactsInternal scans outward from the bucket containing target
+// to neighboring buckets, collecting contacts and sorting by XOR distance. It
+// returns up to count closest contacts.
 func (routingTable *RoutingTable) findClosestContactsInternal(target *KademliaID, count int) []Contact {
 	var candidates ContactCandidates
 	bucketIndex := routingTable.getBucketIndex(target)
@@ -154,7 +174,8 @@ func (routingTable *RoutingTable) findClosestContactsInternal(target *KademliaID
 	return candidates.GetContacts(count)
 }
 
-// getBucketIndex get the correct Bucket index for the KademliaID
+// getBucketIndex returns the index of the bucket that contains the given ID.
+// It iterates over the current bucket ranges to locate the one that includes id.
 func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 	/*
 		distance := id.CalcDistance(routingTable.me.ID)
@@ -177,6 +198,8 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 	return len(routingTable.buckets) - 1
 }
 
+// String returns a human-readable representation of the routing table,
+// listing non-empty buckets and their contacts.
 func (rt *RoutingTable) String() string {
 	result := "Routing Table:\n"
 	for i, bucket := range rt.buckets {
@@ -193,6 +216,8 @@ func (rt *RoutingTable) String() string {
 	return result
 }
 
+// PrintTree returns an ASCII representation of the routing table's buckets and
+// contained contacts, useful for debugging the bucket split tree.
 func (routingTable *RoutingTable) PrintTree() string {
 	var result strings.Builder
 	branch := "├── "
