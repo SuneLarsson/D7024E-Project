@@ -2,8 +2,10 @@ package kademlia
 
 import "encoding/json"
 
+// MessageType identifies the kind of Kademlia RPC being carried.
 type MessageType string
 
+// Supported Kademlia message types.
 const (
 	PING                MessageType = "PING"
 	PONG                MessageType = "PONG"
@@ -17,15 +19,30 @@ const (
 	REFRESH_RESPONSE    MessageType = "REFRESH_RESPONSE"
 )
 
+// Message carries a Kademlia RPC with metadata and an optional JSON-encoded
+// payload. The payload schema depends on Type:
+//   - FIND_NODE_REQUEST: KademliaID (target)
+//   - FIND_NODE_RESPONSE: []Contact (closest contacts)
+//   - STORE: string (value)
+//   - STORE_RESPONSE: bool (store result)
+//   - FIND_VALUE: KademliaID (key)
+//   - FIND_VALUE_RESPONSE: string (value) or []Contact (closest contacts)
+//   - REFRESH: KademliaID (key)
+//   - REFRESH_RESPONSE: bool (refresh result)
+//
+// OriginalUploader indicates whether the sender is the original uploader of the
+// value (affects republish behavior elsewhere). RPCID is used to correlate
+// requests and their responses.
 type Message struct {
 	Type             MessageType
 	From             Contact
-	To               Contact // Do i need to include the To field in the Ping message?
+	To               Contact
 	Payload          []byte
 	OriginalUploader bool
 	RPCID            KademliaID // Unique ID for matching requests and responses
 }
 
+// NewPingMessage constructs a PING message without payload.
 func NewPingMessage(from Contact, rpcID KademliaID, to Contact) *Message {
 	return &Message{
 		Type:  PING,
@@ -35,6 +52,7 @@ func NewPingMessage(from Contact, rpcID KademliaID, to Contact) *Message {
 	}
 }
 
+// NewPongMessage constructs a PONG response without payload.
 func NewPongMessage(from Contact, rpcID KademliaID, to Contact) *Message {
 	return &Message{
 		Type:  PONG,
@@ -44,6 +62,7 @@ func NewPongMessage(from Contact, rpcID KademliaID, to Contact) *Message {
 	}
 }
 
+// NewFindNodeMessage constructs a FIND_NODE request containing the target ID.
 func NewFindNodeMessage(from Contact, rpcID KademliaID, to Contact, target KademliaID) *Message {
 	targetBytes, _ := json.Marshal(target)
 	return &Message{
@@ -55,6 +74,7 @@ func NewFindNodeMessage(from Contact, rpcID KademliaID, to Contact, target Kadem
 	}
 }
 
+// ResponseFindNodeMessage constructs a FIND_NODE response carrying closest contacts.
 func ResponseFindNodeMessage(from Contact, rpcID KademliaID, to Contact, contacts []Contact) *Message {
 	contactsBytes, _ := json.Marshal(contacts)
 	return &Message{
@@ -66,6 +86,9 @@ func ResponseFindNodeMessage(from Contact, rpcID KademliaID, to Contact, contact
 	}
 }
 
+// NewStoreMessage constructs a STORE request carrying the value to be stored.
+// The key is derived by receivers as SHA-1(value). originalUploader marks the
+// sender as the original uploader for republish decisions elsewhere.
 func NewStoreMessage(from Contact, rpcID KademliaID, to Contact, data string, originalUploader bool) *Message {
 	dataBytes, _ := json.Marshal(data)
 	return &Message{
@@ -78,6 +101,7 @@ func NewStoreMessage(from Contact, rpcID KademliaID, to Contact, data string, or
 	}
 }
 
+// NewStoreResponseMessage constructs a STORE_RESPONSE carrying the boolean result.
 func NewStoreResponseMessage(from Contact, rpcID KademliaID, to Contact, result bool) *Message {
 	resultBytes, _ := json.Marshal(result)
 	return &Message{
@@ -89,6 +113,7 @@ func NewStoreResponseMessage(from Contact, rpcID KademliaID, to Contact, result 
 	}
 }
 
+// NewFindValueMessage constructs a FIND_VALUE request for the given key ID.
 func NewFindValueMessage(from Contact, rpcID KademliaID, to Contact, key KademliaID) *Message {
 	keyBytes, _ := json.Marshal(key)
 	return &Message{
@@ -100,6 +125,9 @@ func NewFindValueMessage(from Contact, rpcID KademliaID, to Contact, key Kademli
 	}
 }
 
+// NewFindValueResponseMessage constructs a FIND_VALUE response. If value is
+// non-empty, it is returned as the payload; otherwise, the payload carries the
+// list of closest contacts.
 func NewFindValueResponseMessage(from Contact, rpcID KademliaID, to Contact, value string, contacts []Contact) *Message {
 	var payload []byte
 	if value != "" {
@@ -116,6 +144,8 @@ func NewFindValueResponseMessage(from Contact, rpcID KademliaID, to Contact, val
 		RPCID:   rpcID,
 	}
 }
+
+// NewRefreshMessage constructs a REFRESH request for the given key ID.
 func NewRefreshMessage(from Contact, rpcID KademliaID, to Contact, key KademliaID) *Message {
 	keyBytes, _ := json.Marshal(key)
 	return &Message{
@@ -126,6 +156,8 @@ func NewRefreshMessage(from Contact, rpcID KademliaID, to Contact, key KademliaI
 		RPCID:   rpcID,
 	}
 }
+
+// NewRefreshResponseMessage constructs a REFRESH_RESPONSE carrying the boolean result.
 func NewRefreshResponseMessage(from Contact, rpcID KademliaID, to Contact, result bool) *Message {
 	resultBytes, _ := json.Marshal(result)
 	return &Message{

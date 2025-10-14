@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+// SendPing sends a PING RPC to the given contact and waits for a PONG
+// response. It registers a temporary MapRequest so the asynchronous response
+// can be routed back to this call. Returns an error on send failure or if the
+// 3-second response timeout elapses.
 func (kademlia *Kademlia) SendPing(contact *Contact) error {
 	rpcID := NewRandomKademliaID()
 
@@ -47,6 +51,10 @@ func (kademlia *Kademlia) SendPing(contact *Contact) error {
 	}
 }
 
+// FindNode sends a FIND_NODE RPC to contact for the specified target ID and
+// waits for a response up to 3 seconds. It returns the list of contacts
+// returned by the peer, a boolean indicating success, and a third value which
+// is always nil (kept for a uniform signature across find operations).
 func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) ([]Contact, bool, *string) {
 	rpcID := *NewRandomKademliaID()
 
@@ -89,14 +97,19 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) ([]Cont
 	return []Contact{}, false, nil
 }
 
+// addMapRequest enqueues a MapRequest to the manager goroutine so that
+// responses can be routed back to the initiating call.
 func addMapRequest(kademlia *Kademlia, req MapRequest) {
 	kademlia.mapManagerCh <- req
 }
 
-// STORE
-// The sender of the STORE RPC provides a key and a block of data and requires that the recipient store the data and make it available for later retrieval by that key.
-
-// This is a primitive operation, not an iterative one.
+// Store sends a STORE RPC to contact with the given value. The key used by the
+// remote is the SHA-1 of the value (computed by the receiver as well). The
+// originalUploader flag signals whether the caller is the original uploader,
+// affecting refresh/republish semantics elsewhere. Returns true if the peer
+// acknowledged storing the value; times out after 3 seconds.
+//
+// This is a primitive one-shot RPC, not an iterative procedure.
 func (kademlia *Kademlia) Store(contact *Contact, value string, hash string, originalUploader bool) bool {
 	rpcID := *NewRandomKademliaID()
 
@@ -139,7 +152,13 @@ func (kademlia *Kademlia) Store(contact *Contact, value string, hash string, ori
 	return false
 }
 
-// FIND_VALUE
+// FindValue sends a FIND_VALUE RPC to contact for the given target key. It
+// returns one of the following cases:
+//   - (nil, true, value) if the peer had the value
+//   - (contacts, false, nil) if the peer returns closer contacts instead
+//   - (nil, false, nil) on timeout or parse error
+//
+// The call waits up to 3 seconds for a response.
 func (kademlia *Kademlia) FindValue(contact *Contact, target *KademliaID) ([]Contact, bool, *string) {
 	rpcID := *NewRandomKademliaID()
 
@@ -194,6 +213,9 @@ func (kademlia *Kademlia) FindValue(contact *Contact, target *KademliaID) ([]Con
 	return nil, false, nil
 }
 
+// Refresh sends a REFRESH RPC to contact for the given key to extend its local
+// TTL if present. Returns true if the peer refreshed the value; waits up to 3
+// seconds for a response.
 func (kademlia *Kademlia) Refresh(contact *Contact, key string) bool {
 	rpcID := *NewRandomKademliaID()
 
@@ -235,7 +257,9 @@ func (kademlia *Kademlia) Refresh(contact *Contact, key string) bool {
 	return false
 }
 
-// FORGET VALUE/STOP REFRESHING
+// Forget stops periodic refresh/republish for the given key if it is currently
+// scheduled, by signaling the associated channel and removing it from the
+// keyStore.
 func (kademlia *Kademlia) Forget(key string) {
 	kademlia.keyMutex.Lock()
 	defer kademlia.keyMutex.Unlock()

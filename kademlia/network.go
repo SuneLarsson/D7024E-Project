@@ -7,11 +7,17 @@ import (
 	"sync"
 )
 
+// NetworkAPI abstracts the transport layer used by Kademlia.
+// Implementations must be able to listen for incoming messages and send
+// messages to a given remote address.
 type NetworkAPI interface {
 	Listen() error
 	SendMessage(addr string, msg *Message) error
 }
 
+// Network is a UDP-based transport that encodes/decodes Message values as JSON.
+// It invokes the provided onMessage handler for each received message in its
+// own goroutine and uses a WaitGroup to track in-flight handlers for shutdown.
 type Network struct {
 	Self      Contact
 	Conn      *net.UDPConn
@@ -19,6 +25,8 @@ type Network struct {
 	workWg    sync.WaitGroup
 }
 
+// NewNetwork constructs a Network bound to the given UDP connection and
+// installs the provided message handler.
 func NewNetwork(self Contact, conn *net.UDPConn, handler func(msg Message, addr *net.UDPAddr)) *Network {
 	return &Network{
 		Self:      self,
@@ -28,6 +36,10 @@ func NewNetwork(self Contact, conn *net.UDPConn, handler func(msg Message, addr 
 	}
 }
 
+// Listen reads datagrams from the UDP connection, decodes each as a Message,
+// and dispatches it to the onMessage handler in a separate goroutine. This call
+// blocks until the underlying connection is closed. Errors on read or decode
+// are logged and the loop continues.
 func (network *Network) Listen() error {
 	// Create a UDP listener
 	// defer network.Conn.Close()
@@ -60,6 +72,8 @@ func (network *Network) Listen() error {
 	}
 }
 
+// SendMessage resolves the remote UDP address, JSON-encodes msg, and sends it
+// via the underlying UDP connection.
 func (network *Network) SendMessage(addr string, msg *Message) error {
 
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
@@ -77,6 +91,8 @@ func (network *Network) SendMessage(addr string, msg *Message) error {
 	return err
 }
 
+// Shutdown closes the UDP connection and waits for all in-flight message
+// handlers to complete before returning.
 func (network *Network) Shutdown() error {
 	error := network.Conn.Close()
 	network.workWg.Wait()
