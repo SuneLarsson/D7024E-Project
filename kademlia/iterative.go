@@ -216,7 +216,11 @@ func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (r
 		// Schedule periodic refresh of the value while the node runs.
 		go func(key *KademliaID) {
 			defer kademlia.wg.Done()
-			ticker := time.NewTicker(time.Duration(tRepublish) * time.Hour)
+			// Capture republish interval under config mutex to avoid data races with ReloadConfig.
+			configMutex.Lock()
+			republishHours := tRepublish
+			configMutex.Unlock()
+			ticker := time.NewTicker(time.Duration(republishHours) * time.Hour)
 			defer ticker.Stop()
 			forgetChan := make(chan string)
 			kademlia.keyMutex.Lock()
