@@ -13,6 +13,17 @@ import (
 // const kSize = 20 // Bucket size
 // const alpha = 3  // Concurrency
 
+// Kademlia represents a node in the Kademlia DHT. It encapsulates the
+// network transport, routing table, local storage, lookup parameters, and
+// lifecycle management (background maintenance and shutdown).
+//
+// A Kademlia instance starts background goroutines for network listening,
+// pending-request bookkeeping, storage cleanup, and periodic replication.
+// Use Shutdown to stop these goroutines gracefully.
+//
+// Most fields are internal implementation details and not intended for
+// direct manipulation by callers.
+//
 // Kademlia structure
 
 type Kademlia struct {
@@ -33,6 +44,9 @@ type Kademlia struct {
 	wg           sync.WaitGroup
 }
 
+// MapRequest is an internal control message used by managePendingRequests to
+// register and resolve pending RPC requests by their RPCID. Callers should not
+// construct or send these directly; use higher-level RPC mechanisms instead.
 type MapRequest struct {
 	rpcID        KademliaID
 	responseChan chan Message
@@ -45,6 +59,15 @@ type DataItem struct {
 	timeToLive time.Time
 }
 
+// NewKademliaNode creates and initializes a new Kademlia node.
+//
+// The node binds a UDP socket on 0.0.0.0:port for inbound traffic and derives
+// the public-facing address from the outbound interface (used for contact info).
+// It initializes routing, local storage (using TTL), network transport, and
+// starts background goroutines for listening, request management, periodic
+// cleanup, and replication.
+//
+// Returns the initialized node or an error if socket setup fails.
 func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 	// 1. Resolve the listening address (using "0.0.0.0" is correct here)
 	listenAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", "0.0.0.0", port))
@@ -93,6 +116,9 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 
 	kademlia.Network = network
 
+	// Start background goroutines for network I/O, request tracking,
+	// storage maintenance, and key replication. WaitGroup is used to
+	// coordinate shutdown of maintenance routines.
 	kademlia.wg.Add(3)
 	go kademlia.Network.Listen()
 	go kademlia.managePendingRequests()
@@ -102,6 +128,9 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 	return kademlia, nil
 }
 
+// managePendingRequests tracks pending RPC requests keyed by RPCID and routes
+// incoming responses to the correct waiting channel. It terminates when a
+// shutdown signal is received via kademlia.done.
 func (k *Kademlia) managePendingRequests() {
 	defer k.wg.Done()
 	pending := make(map[string]chan Message)
@@ -144,6 +173,10 @@ func (k *Kademlia) managePendingRequests() {
 	}
 }
 
+// JoinNetwork connects this node to the overlay using a known bootstrap
+// contact. It ensures the node has an ID, inserts the bootstrap contact in the
+// appropriate bucket, runs an IterativeFindNode on itself to populate nearby
+// buckets, then refreshes buckets farther than the closest neighbor.
 func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 	//1. Create ID if not exists
 	if kademlia.Self.ID == nil {
@@ -168,6 +201,9 @@ func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 	}
 }
 
+// RefreshBucket triggers a bucket-refresh operation for the bucket at index i
+// by selecting a contact from that bucket and issuing an IterativeFindNode for
+// a target in its range.
 func (kademlia *Kademlia) RefreshBucket(idx int) {
 	kademlia.RoutingTable.bucketsMutex.Lock()
 	contact := kademlia.RoutingTable.buckets[idx].getContactForBucketRefresh()
@@ -177,7 +213,9 @@ func (kademlia *Kademlia) RefreshBucket(idx int) {
 	}
 }
 
-// Helper function to get the outbound IP address
+// getOutboundIP determines the local machine's primary outbound IP address by
+// initiating a UDP connection to a well-known address and reading the local
+// socket address chosen by the OS.
 func getOutboundIP() (string, error) {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
@@ -189,6 +227,9 @@ func getOutboundIP() (string, error) {
 	return localAddr.IP.String(), nil
 }
 
+// RunPeriodicCleanup periodically invokes DataStore.Clean at the given
+// interval to purge expired entries. It exits when a shutdown signal is
+// received via kademlia.done.
 func (kademlia *Kademlia) RunPeriodicCleanup(interval time.Duration) {
 	defer kademlia.wg.Done()
 	ticker := time.NewTicker(interval)
@@ -207,9 +248,10 @@ func (kademlia *Kademlia) RunPeriodicCleanup(interval time.Duration) {
 	// }
 }
 
-// PeriodicReplication implements the 1-hour replication rule.
-// It iterates over all data this node holds and re-stores it on the
-// k-closest nodes to ensure data persists even if nodes leave.
+// PeriodicReplication performs periodic replication of locally stored data.
+// At each interval, it iterates over local keys and attempts to re-store their
+// values on the k-closest nodes, improving resilience against churn. The
+// interval is provided by the caller (typically derived from configuration).
 func (kademlia *Kademlia) PeriodicReplication(interval time.Duration) {
 	defer kademlia.wg.Done()
 	ticker := time.NewTicker(interval)
@@ -244,7 +286,9 @@ func (kademlia *Kademlia) PeriodicReplication(interval time.Duration) {
 	// }
 }
 
-// Shutdown gracefully
+// Shutdown gracefully stops background goroutines, network listeners, and the
+// optional HTTP server, waiting for maintenance routines to terminate before
+// returning.
 func (kademlia *Kademlia) Shutdown() {
 
 	for i := 0; i < 3; i++ {

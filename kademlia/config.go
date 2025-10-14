@@ -81,6 +81,19 @@ func gettExpire() int {
 	return tExpire
 }
 
+// Global configuration parameters loaded from environment on package init and
+// when ReloadConfig is invoked.
+//
+// The following environment variables are read (all values are integers):
+//   - ALPHA: parallelism for iterative lookups (default 3)
+//   - BETA: response threshold for lookup rounds (default 20)
+//   - K: bucket size / replication factor (default 20)
+//   - TTL: time-to-live for local storage entries, in seconds (default 3600)
+//   - TREPLICATE: replication interval, in hours (default 1)
+//   - TREPUBLISH: republish/refresh interval for original uploader, in hours (default 24)
+//   - TEXPIRE: expiration horizon for stored items on a node, in hours (default 25)
+//
+// Invalid or missing values fall back to the defaults above and a log message is emitted.
 var (
 	ALPHA       = getAlpha()
 	BETA        = getBeta()
@@ -89,9 +102,14 @@ var (
 	tReplicate  = gettReplicate()
 	tRepublish  = gettRepublish()
 	tExpire     = gettExpire()
-	configMutex sync.Mutex
+	configMutex sync.Mutex // protects concurrent ReloadConfig and reads of config during reload
 )
 
+// ReloadConfig reloads configuration values from environment variables.
+//
+// This function is safe for concurrent use. It updates the package-level
+// configuration variables atomically under a mutex and logs completion.
+// Use it to apply config changes at runtime without restarting the process.
 func ReloadConfig() {
 	configMutex.Lock()
 	ALPHA = getAlpha()

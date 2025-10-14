@@ -8,17 +8,23 @@ import (
 	"time"
 )
 
+// LookupNode performs an iterative FIND_NODE for the given target ID (hex string)
+// and returns the closest contacts discovered.
 func (kademlia *Kademlia) LookupNode(target string) []Contact {
 	targetId := NewKademliaID(target)
 	return kademlia.IterativeFindNode(targetId, ALPHA, K)
 }
 
+// LookupValue resolves a value by its key (hex string KademliaID).
+// If the value is locally available, it is returned directly. Otherwise, the
+// method runs an iterative FIND_VALUE and returns either the value if found or
+// the closest contacts to the key when not found.
 func (kademlia *Kademlia) LookupValue(target string) ([]Contact, *string) {
 	if !kademlia.IsValidKademliaID(target) {
 		return nil, nil
 	}
 	targetId := NewKademliaID(target)
-	// TODO if the value exists in the local datastore should we return it directly?
+	// Fast path: if already present locally, return without network lookup.
 	dataItem, exists := kademlia.DataStore.Get(targetId.String())
 	if exists {
 		return nil, &dataItem
@@ -34,6 +40,13 @@ func idsOf(contacts []Contact) []string {
 	return ids
 }
 
+// IterativeFindValue executes the Kademlia iterative FIND_VALUE procedure.
+// It queries up to 'alpha' nodes concurrently, tracks progress, and either:
+//   - returns the discovered value, or
+//   - returns up to kSize closest contacts when the value is not found.
+//
+// When a value is found, the function opportunistically triggers an asynchronous
+// Store on the closest node that did not have the value, helping propagate data.
 func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSize int) ([]Contact, *string) {
 	type findValueResponse struct {
 		from     *Contact
@@ -66,6 +79,7 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 			break
 		}
 
+		// Detect search stalling: if no better nodes are selected, widen the query to kSize.
 		isStalled := closestSoFar != nil && !nodesToQuery[0].Less(closestSoFar)
 		if isStalled {
 			nodesToQuery = candidates.pickAlpha(queried, kSize)
@@ -89,6 +103,7 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 			}(c)
 		}
 
+		// Time-bound each round to avoid indefinite waiting on slow/unresponsive nodes.
 		roundTimeout := time.After(3 * time.Second)
 		var valueFound *string = nil
 		for i := 0; i < len(nodesToQuery); i++ {
@@ -152,8 +167,14 @@ func (kademlia *Kademlia) IterativeFindValue(target *KademliaID, alpha int, kSiz
 	return candidates.GetContacts(kSize), nil
 }
 
+// IterativeStore hashes the given value into a key (KademliaID), stores it
+// locally, discovers the k closest nodes to that key, and issues STORE RPCs.
+// It returns the derived key and whether at least one STORE succeeded.
+//
+// If originalUploader is true and at least one STORE succeeds, the method
+// schedules periodic refresh (republish) of the value according to tRepublish.
 func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (returnKey string, isValid bool) {
-	//1. Hash the value to get the key
+	// 1. Hash the value to get the key
 	dataToHash := []byte(value)
 	hash := sha1.Sum(dataToHash)
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
@@ -166,11 +187,11 @@ func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (r
 	}()
 	kademlia.DataStore.Put(key.String(), value, true, true)
 
-	//2. Find the k closest nodes to the key
+	// 2. Find the k closest nodes to the key
 	closest := kademlia.IterativeFindNode(key, ALPHA, K)
 	log.Printf("Found %d closest nodes to store the value: %v\n", len(closest), idsOf(closest))
 
-	//3. Send STORE RPCs to those nodes
+	// 3. Send STORE RPCs to those nodes
 	successCount := 0
 	chStore := make(chan bool, len(closest))
 
@@ -186,14 +207,13 @@ func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (r
 		}
 	}
 
-	// If at least one STORE was successful, consider it a success
-	// and print the number of successful stores
-	// Otherwise, print a failure message
+	// Consider success if at least one STORE succeeded.
 	if successCount > 0 && originalUploader {
 		log.Printf("Successfully stored value on %d nodes\n", successCount)
 
 		kademlia.wg.Add(1)
 
+		// Schedule periodic refresh of the value while the node runs.
 		go func(key *KademliaID) {
 			defer kademlia.wg.Done()
 			ticker := time.NewTicker(time.Duration(tRepublish))
@@ -222,12 +242,14 @@ func (kademlia *Kademlia) IterativeStore(value string, originalUploader bool) (r
 		log.Println("Failed to store value on any node")
 	}
 
-	//4. If a node does not respond, find a replacement node and send STORE to it // Optional
+	// 4. If a node does not respond, find a replacement node and send STORE to it // Optional
 	returnKey = key.String()
 	isValid = successCount > 0
 	return
 }
 
+// IterativeRefresh reissues REFRESH/STORE-like operations for the given key to
+// the kSize closest contacts currently known, helping maintain availability.
 func (kademlia *Kademlia) IterativeRefresh(key *KademliaID, kSize int) {
 	contact := kademlia.RoutingTable.FindClosestContacts(key, kSize)
 	for _, c := range contact {
@@ -240,6 +262,9 @@ type findNodeResponse struct {
 	contacts []Contact
 }
 
+// IterativeFindNode executes the Kademlia iterative FIND_NODE procedure.
+// It probes up to 'alpha' nodes in parallel, applies stall detection to widen
+// queries when progress halts, and returns up to kSize closest contacts found.
 func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize int) []Contact {
 	probed := make(map[string]bool)
 
@@ -263,6 +288,7 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 			break
 		}
 
+		// Detect search stalling and widen to kSize if needed.
 		isStalled := closestSoFar != nil && !nodesToQuery[0].Less(closestSoFar)
 		if isStalled {
 			nodesToQuery = candidates.pickAlpha(queried, kSize)
@@ -286,6 +312,7 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 
 		responses := 0
 
+		// Bound each round to avoid waiting forever on slow nodes.
 		roundTimeout := time.After(3 * time.Second)
 		for i := 0; i < len(nodesToQuery); i++ {
 			select {
@@ -327,6 +354,8 @@ func (kademlia *Kademlia) IterativeFindNode(target *KademliaID, alpha int, kSize
 	return candidates.GetContacts(kSize)
 }
 
+// pickAlpha returns up to 'alpha' contacts from the candidate list that have
+// not yet been queried in the current iteration.
 func (c *ContactCandidates) pickAlpha(queried map[string]bool, alpha int) []Contact {
 	toQuery := []Contact{}
 	for _, contact := range c.contacts {
@@ -340,6 +369,8 @@ func (c *ContactCandidates) pickAlpha(queried map[string]bool, alpha int) []Cont
 	return toQuery
 }
 
+// mergeAndSort merges newContacts into the candidate set, recomputes distances
+// relative to target, sorts by distance, and trims to at most kSize contacts.
 func (c *ContactCandidates) mergeAndSort(newContacts []Contact, target *KademliaID, kSize int) bool {
 	progress := false
 	for _, nc := range newContacts {
@@ -358,6 +389,8 @@ func (c *ContactCandidates) mergeAndSort(newContacts []Contact, target *Kademlia
 	return progress
 }
 
+// SortWithTarget ensures each candidate has an up-to-date distance to target
+// before sorting by distance.
 func (c *ContactCandidates) SortWithTarget(target *KademliaID) {
 	for i := range c.contacts {
 		if c.contacts[i].distance == nil {
