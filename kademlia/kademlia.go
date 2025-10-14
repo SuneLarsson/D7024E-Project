@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -94,6 +95,7 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 	}
 
 	ttl := time.Duration(TTL) * time.Second
+	log.Println("TTL: ", ttl)
 
 	kademlia := &Kademlia{
 		Self:         contact,
@@ -104,7 +106,7 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 		beta:         BETA,
 		k:            K,
 		ttl:          ttl,
-		done:         make(chan struct{}, 3),
+		done:         make(chan struct{}, 4),
 		// *storage.NewStorageWithTTL(60 * time.Second),
 	}
 
@@ -119,11 +121,12 @@ func NewKademliaNode(ip string, port int) (*Kademlia, error) {
 	// Start background goroutines for network I/O, request tracking,
 	// storage maintenance, and key replication. WaitGroup is used to
 	// coordinate shutdown of maintenance routines.
-	kademlia.wg.Add(3)
+	kademlia.wg.Add(4)
 	go kademlia.Network.Listen()
 	go kademlia.managePendingRequests()
 	go kademlia.RunPeriodicCleanup(5 * time.Second)
 	go kademlia.PeriodicReplication(time.Duration(tReplicate) * time.Hour)
+	go kademlia.startRefreshLoop()
 
 	return kademlia, nil
 }
@@ -191,25 +194,37 @@ func (kademlia *Kademlia) JoinNetwork(knownContact *Contact) {
 
 	//4. Refresh bucket further away than closest
 	// neighbor
-	closest := kademlia.RoutingTable.FindClosestContacts(kademlia.Self.ID, 1)
+	// closest := kademlia.RoutingTable.FindClosestContacts(kademlia.Self.ID, 1)
 	kademlia.RoutingTable.bucketsMutex.Lock()
 	limit := len(kademlia.RoutingTable.buckets)
 	kademlia.RoutingTable.bucketsMutex.Unlock()
-	bucketIndex := kademlia.RoutingTable.getBucketIndex(closest[0].ID)
-	for i := bucketIndex + 1; i < limit; i++ {
+	// bucketIndex := kademlia.RoutingTable.getBucketIndex(closest[0].ID)
+	log.Println(kademlia.RoutingTable.String())
+	for i := 0; i < limit; i++ {
 		kademlia.RefreshBucket(i)
+		log.Println("Refreshed bucket", i)
 	}
+	log.Println(kademlia.RoutingTable.String())
 }
 
-// RefreshBucket triggers a bucket-refresh operation for the bucket at index i
-// by selecting a contact from that bucket and issuing an IterativeFindNode for
-// a target in its range.
+// RefreshBucket triggers a bucket-refresh operation for the bucket at index i.
+// It generates a random ID within the bucket's range and initiates an
+// iterative find node process.
 func (kademlia *Kademlia) RefreshBucket(idx int) {
-	kademlia.RoutingTable.bucketsMutex.Lock()
-	contact := kademlia.RoutingTable.buckets[idx].getContactForBucketRefresh()
-	kademlia.RoutingTable.bucketsMutex.Unlock()
-	if contact.ID != nil {
-		kademlia.IterativeFindNode(contact.ID, ALPHA, kademlia.k)
+	kademlia.RoutingTable.bucketsMutex.RLock()
+	// Ensure the index is valid
+	if idx < 0 || idx >= len(kademlia.RoutingTable.buckets) {
+		log.Println("Invalid bucket index:", idx)
+		kademlia.RoutingTable.bucketsMutex.RUnlock()
+		return
+	}
+	randomID := kademlia.RoutingTable.buckets[idx].generateRandomIDForRefresh()
+	kademlia.RoutingTable.bucketsMutex.RUnlock()
+
+	if randomID != nil {
+		log.Println("Refreshing bucket", idx, "with random ID", randomID.String())
+		// Perform the lookup using the new random ID
+		kademlia.IterativeFindNode(randomID, ALPHA, kademlia.k)
 	}
 }
 
@@ -242,10 +257,7 @@ func (kademlia *Kademlia) RunPeriodicCleanup(interval time.Duration) {
 			return
 		}
 	}
-	// for {
-	// 	time.Sleep(interval)
-	// 	kademlia.DataStore.Clean()
-	// }
+
 }
 
 // PeriodicReplication performs periodic replication of locally stored data.
@@ -274,16 +286,6 @@ func (kademlia *Kademlia) PeriodicReplication(interval time.Duration) {
 		}
 	}
 
-	// for range ticker.C {
-	// 	log.Println("Starting periodic replication cycle...")
-	// 	keys := kademlia.DataStore.GetKeys()
-	// 	for _, keyStr := range keys {
-	// 		value, _, found := kademlia.DataStore.GetValueAndMetadataForReplication(keyStr)
-	// 		if found {
-	// 			go kademlia.IterativeStore(value, true)
-	// 		}
-	// 	}
-	// }
 }
 
 // Shutdown gracefully stops background goroutines, network listeners, and the
@@ -291,7 +293,7 @@ func (kademlia *Kademlia) PeriodicReplication(interval time.Duration) {
 // returning.
 func (kademlia *Kademlia) Shutdown() {
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		kademlia.done <- struct{}{}
 	}
 	defer close(kademlia.done)
@@ -310,4 +312,63 @@ func (kademlia *Kademlia) Shutdown() {
 		}
 	}
 	kademlia.httpMutex.Unlock()
+}
+
+// NewKademliaIDFromBinary creates a KademliaID from a binary string representation.
+func NewKademliaIDFromBinary(binString string) (*KademliaID, error) {
+	if len(binString) != IDLength*8 {
+		return nil, fmt.Errorf("binary string must be %d chars long, but was %d", IDLength*8, len(binString))
+	}
+
+	var id KademliaID
+	for i := 0; i < IDLength; i++ {
+		// Get an 8-bit chunk (a byte)
+		byteString := binString[i*8 : (i+1)*8]
+
+		// Parse it from base 2
+		byteVal, err := strconv.ParseUint(byteString, 2, 8)
+		if err != nil {
+			return nil, err
+		}
+		id[i] = uint8(byteVal)
+	}
+	return &id, nil
+}
+
+func (kademlia *Kademlia) startRefreshLoop() {
+	defer kademlia.wg.Done()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	// Perform an initial refresh shortly after startup.
+	kademlia.refreshAllBuckets()
+
+	for {
+		select {
+		case <-ticker.C:
+			// This case is triggered every 10 minutes.
+			log.Println("Starting periodic bucket refresh...")
+			kademlia.refreshAllBuckets()
+
+		case <-kademlia.done:
+			// If a value is sent on the quit channel, exit the loop.
+			log.Println("Stopping bucket refresh loop.")
+			return
+		}
+	}
+}
+
+// Helper function to contain the refresh logic.
+func (kademlia *Kademlia) refreshAllBuckets() {
+	kademlia.RoutingTable.bucketsMutex.RLock()
+	limit := len(kademlia.RoutingTable.buckets)
+	kademlia.RoutingTable.bucketsMutex.RUnlock()
+
+	log.Printf("Refreshing %d buckets...\n", limit)
+	for i := 0; i < limit; i++ {
+		// Calling the function we created in the last step
+		kademlia.RefreshBucket(i)
+	}
+	log.Println("Finished refreshing buckets.")
+	log.Println(kademlia.RoutingTable.String())
 }

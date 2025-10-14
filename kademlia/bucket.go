@@ -189,18 +189,54 @@ func (bucket *bucket) Len() int {
 	return bucket.list.Len()
 }
 
-// Refresh bucket the node selects a random number in that range and does a refresh, an iterativeFindNode using that number as key.
-func (bucket *bucket) getContactForBucketRefresh() Contact {
+// // Refresh bucket the node selects a random number in that range and does a refresh, an iterativeFindNode using that number as key.
+// func (bucket *bucket) getContactForBucketRefresh() Contact {
+// 	bucket.mu.Lock()
+// 	defer bucket.mu.Unlock()
+
+// 	if bucket.list.Len() == 0 {
+// 		return Contact{ID: nil} // Return a contact with a nil ID
+// 	}
+// 	randomIndex := rand.Intn(bucket.list.Len())
+// 	element := bucket.list.Front()
+// 	for i := 0; i < randomIndex; i++ {
+// 		element = element.Next()
+// 	}
+// 	return element.Value.(Contact)
+// }
+
+// generateRandomIDForRefresh generates a new random KademliaID that falls within this bucket's range.
+func (bucket *bucket) generateRandomIDForRefresh() *KademliaID {
 	bucket.mu.Lock()
 	defer bucket.mu.Unlock()
 
-	if bucket.list.Len() == 0 {
-		return Contact{ID: nil} // Return a contact with a nil ID
+	// Start with the bucket's prefix.
+	prefix := bucket.prefix
+	depth := bucket.depth
+
+	// Calculate how many random bits we need to fill the rest of the ID.
+	numRandomBits := (IDLength * 8) - depth
+
+	// Create the random suffix.
+	var randomSuffix strings.Builder
+	for i := 0; i < numRandomBits; i++ {
+		if rand.Intn(2) == 0 {
+			randomSuffix.WriteString("0")
+		} else {
+			randomSuffix.WriteString("1")
+		}
 	}
-	randomIndex := rand.Intn(bucket.list.Len())
-	element := bucket.list.Front()
-	for i := 0; i < randomIndex; i++ {
-		element = element.Next()
+
+	// Combine the prefix and the random suffix to get a full 160-bit ID.
+	fullBinaryID := prefix + randomSuffix.String()
+
+	// Convert the binary string to a KademliaID object.
+	randomID, err := NewKademliaIDFromBinary(fullBinaryID)
+	if err != nil {
+		// This should ideally not happen if the logic is correct.
+		// Return nil as an indicator of failure.
+		return nil
 	}
-	return element.Value.(Contact)
+
+	return randomID
 }
