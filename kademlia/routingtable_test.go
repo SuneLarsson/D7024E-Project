@@ -1,77 +1,138 @@
 package kademlia
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-// TestGetBucketIndex verifies that the bucket index is calculated correctly based on the distance.
-func TestGetBucketIndex(t *testing.T) {
-	// 1. Setup: Create a "me" contact with a zero-ID for easy distance calculation.
-	me := NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
+// TestBucketWorking verifies that the bucket works correctly with its parameters
+func TestBucketWorking(t *testing.T) {
+	// 1. Setup: Create a "me" contact
+	me, _ := NewKademliaNode("localhost", 8000)
+	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
+	K = 3
+	BETA = 3
 	rt := NewRoutingTable(me)
+	defer ReloadConfig()
+	rt.buckets[0].b = 3
 
-	// 2. Test Cases: Define different target IDs and their expected bucket index.
-	testCases := []struct {
-		name       string
-		targetID   *KademliaID
-		expected   int
-		shouldFail bool
-	}{
-		{
-			name:     "ID with MSB at index 0",
-			targetID: NewKademliaID("8000000000000000000000000000000000000000"),
-			expected: 0, // Should be in the first bucket
-		},
-		{
-			name:     "ID with MSB at index 7",
-			targetID: NewKademliaID("0100000000000000000000000000000000000000"),
-			expected: 7,
-		},
-		{
-			name:     "ID with MSB at index 8",
-			targetID: NewKademliaID("0080000000000000000000000000000000000000"),
-			expected: 8,
-		},
-		{
-			name:     "ID identical to 'me' (distance is 0)",
-			targetID: NewKademliaID("0000000000000000000000000000000000000000"),
-			expected: 159, // Should fall in the last bucket
-		},
-		{
-			name:     "A distant ID",
-			targetID: NewKademliaID("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),
-			expected: 0, // Distance is all 1s, so MSB is at index 0
-		},
-		{
-			name:       "Incorrect index check",
-			targetID:   NewKademliaID("8000000000000000000000000000000000000000"),
-			expected:   5, // This is intentionally wrong
-			shouldFail: true,
-		},
+	rt.AddContact(NewContact(NewKademliaID("9000000000000000000000000000000000000000"), "10010"))
+	rt.AddContact(NewContact(NewKademliaID("8800000000000000000000000000000000000000"), "10001"))
+	rt.AddContact(NewContact(NewKademliaID("0800000000000000000000000000000000000000"), "00001"))
+
+	rt.bucketsMutex.RLock()
+	if len(rt.buckets) > 1 {
+		t.Error("There should be only one bucket at this time")
+	}
+	rt.bucketsMutex.RUnlock()
+
+	rt.AddContact(NewContact(NewKademliaID("8000000000000000000000000000000000000000"), "10000"))
+
+	time.Sleep(100 * time.Millisecond)
+
+	rt.bucketsMutex.RLock()
+	if len(rt.buckets) != 2 {
+		t.Error("There should be two buckets at this time")
 	}
 
-	// 3. Action and Assertion: Run through the test cases.
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			bucketIndex := rt.getBucketIndex(tc.targetID)
-			if tc.shouldFail {
-				if bucketIndex == tc.expected {
-					t.Errorf("Expected bucket index to NOT be %d, but it was", tc.expected)
-				}
-			} else {
-				if bucketIndex != tc.expected {
-					t.Errorf("Expected bucket index %d, but got %d", tc.expected, bucketIndex)
-				}
-			}
-		})
+	if rt.buckets[0].Len() != 3 && rt.buckets[0].Len() != 1 {
+		t.Error("The bucket at index 0 should contain 3 contacts, while the bucket at index 1 should contain 1")
+	}
+	rt.bucketsMutex.RUnlock()
+
+	rt.AddContact(NewContact(NewKademliaID("C000000000000000000000000000000000000000"), "11000"))
+
+	time.Sleep(100 * time.Millisecond)
+
+	rt.bucketsMutex.RLock()
+	if len(rt.buckets) != 3 {
+		t.Error("There should be three buckets at this time")
+	}
+
+	bucketSizes := [3]int{1, 3, 1}
+	for i, size := range bucketSizes {
+		if rt.buckets[i].Len() != size {
+			t.Error("Bucket at index", i, "is of size", rt.buckets[i].Len(), "when it should be", size)
+		}
+	}
+	rt.bucketsMutex.RUnlock()
+
+	rt.AddContact(NewContact(NewKademliaID("E000000000000000000000000000000000000000"), "11100"))
+
+	time.Sleep(100 * time.Millisecond)
+
+	rt.bucketsMutex.RLock()
+	if len(rt.buckets) != 3 {
+		t.Error("There should be three buckets at this time")
+	}
+
+	bucketSizes = [3]int{2, 3, 1}
+	for i, size := range bucketSizes {
+		if rt.buckets[i].Len() != size {
+			t.Error("Bucket at index", i, "is of size", rt.buckets[i].Len(), "when it should be", size)
+		}
+	}
+	rt.bucketsMutex.RUnlock()
+}
+
+// TestBucketIsPresent verifies that the IsPresent function of a bucket is correct
+func TestBucketIsPresent(t *testing.T) {
+	me, _ := NewKademliaNode("localhost", 8001)
+	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
+	rt := NewRoutingTable(me)
+	rt.AddContact(NewContact(NewKademliaID("c000000000000000000000000000000000000000"), "Present"))
+
+	time.Sleep(100 * time.Millisecond)
+	fmt.Println(rt.PrintTree())
+	if !rt.buckets[0].IsPresent(NewKademliaID("c000000000000000000000000000000000000000")) {
+		t.Error("The contact should be present")
+	}
+
+	if rt.buckets[0].IsPresent(NewKademliaID("c100000000000000000000000000000000000000")) {
+		t.Error("There is no contact with this KademliaID")
+	}
+}
+
+// TestGetBucketIndex verifies that the bucket index is correctly gotten
+func TestGetBucketIndex(t *testing.T) {
+	me, _ := NewKademliaNode("localhost", 8002)
+	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
+	rt := NewRoutingTable(me)
+	rt.buckets = []*bucket{
+		newBucket("11", 2),
+		newBucket("10", 2),
+		newBucket("01", 2),
+		newBucket("001", 3),
+		newBucket("0001", 4),
+		newBucket("0000", 4),
+	}
+
+	expectedIndexes := []int{0, 5, 2, 4, 3, 1}
+	idsToVerify := []*KademliaID{
+		NewKademliaID("C000000000000000000000000000000000000000"), //11000...
+		NewKademliaID("0800000000000000000000000000000000000000"), //00001...
+		NewKademliaID("4800000000000000000000000000000000000000"), //01001...
+		NewKademliaID("1800000000000000000000000000000000000000"), //00011...
+		NewKademliaID("2800000000000000000000000000000000000000"), //00101...
+		NewKademliaID("9800000000000000000000000000000000000000"), //10011...
+	}
+
+	for i := 0; i < len(idsToVerify); i++ {
+		if res := rt.getBucketIndex(idsToVerify[i]); res != expectedIndexes[i] {
+			t.Error("Index of ID", idsToVerify[i].String(), "found at bucket", res, "when expected at", expectedIndexes[i])
+		}
 	}
 }
 
 // TestFindClosestContacts tests the core functionality of finding and sorting contacts.
 func TestFindClosestContacts(t *testing.T) {
 	// 1. Setup: Create a routing table and a set of contacts to add.
-	me := NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
+	me, _ := NewKademliaNode("localhost", 8003)
+	me.Self = NewContact(NewKademliaID("0000000000000000000000000000000000000000"), "localhost:8000")
 	rt := NewRoutingTable(me)
 
 	// Create contacts. Their hex values are chosen to control their distance.
@@ -134,7 +195,7 @@ func TestFindClosestContacts(t *testing.T) {
 	// Sub-test 3: Test on a completely empty routing table.
 	t.Run("Returns empty slice for an empty routing table", func(t *testing.T) {
 		emptyRt := NewRoutingTable(me)
-		closest := emptyRt.FindClosestContacts(me.ID, 5)
+		closest := emptyRt.FindClosestContacts(me.Self.ID, 5)
 
 		if len(closest) != 0 {
 			t.Fatalf("Expected 0 contacts from an empty table, but got %d", len(closest))
@@ -149,4 +210,56 @@ func getContactIDs(contacts []Contact) []string {
 		ids[i] = c.ID.String()
 	}
 	return ids
+}
+
+func TestRoutingTablePrint(t *testing.T) {
+	self, _ := NewKademliaNode("localhost", 8004)
+	self.Self = NewContact(NewRandomKademliaID(), "nodeA")
+	rt := NewRoutingTable(self)
+
+	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
+	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeC"))
+	rt.AddContact(NewContact(NewRandomKademliaID(), "nodeD"))
+
+	fmt.Println(rt.String())
+}
+
+func TestGeneralRoutingTreePrint(t *testing.T) {
+	// Build a fake routing tree for b=2
+
+	t.Run("Printing Tree", func(t *testing.T) {
+		self, _ := NewKademliaNode("localhost", 8005)
+		self.Self = NewContact(NewRandomKademliaID(), "Myself")
+		rt := self.RoutingTable
+
+		rt.bucketsMutex.Lock()
+
+		rt.buckets = []*bucket{
+			newBucket("00", 2),
+			newBucket("01", 2),
+			newBucket("10", 2),
+			newBucket("11", 2),
+		}
+		rt.bucketsMutex.Unlock()
+
+		nodeA := NewContact(NewRandomKademliaID(), "nodeA")
+		fmt.Println(nodeA.ID.String())
+		fmt.Println("Adding nodeA")
+		rt.AddContact(nodeA)
+		fmt.Println("Adding nodeB")
+		rt.AddContact(NewContact(NewRandomKademliaID(), "nodeB"))
+		fmt.Println("Adding nodeC")
+		rt.AddContact(NewContact(NewRandomKademliaID(), "nodeC"))
+		fmt.Println("Adding nodeD")
+		rt.AddContact(NewContact(NewRandomKademliaID(), "nodeD"))
+
+		time.Sleep(100 * time.Millisecond)
+
+		fmt.Println("Routing Tree (b=2):")
+		fmt.Println(rt.PrintTree())
+
+		assert.True(t, true, "")
+	})
+
+	//t.Error("test")
 }

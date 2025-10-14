@@ -4,18 +4,28 @@ package kademlia
 import (
 	"d7024e/storage"
 	"errors"
+	"math/rand"
 	"sync"
+	"time"
 )
 
 // SimulatedNetwork acts as an in-memory message bus for Kademlia nodes.
 type SimulatedNetwork struct {
-	nodes map[string]*Kademlia // Map address string to Kademlia instance
-	mu    sync.Mutex
+	nodes    map[string]*Kademlia // Map address string to Kademlia instance
+	mu       sync.Mutex
+	dropRate float64    // Packet drop probability (0.0 to 1.0)
+	rand     *rand.Rand // Random source for packet dropping
+	seed     int64
 }
 
-func NewSimulatedNetwork() *SimulatedNetwork {
+// NewSimulatedNetwork creates a new network simulation with a configurable packet drop rate.
+// The dropRate should be a value between 0.0 (no drops) and 1.0 (all drops).
+func NewSimulatedNetwork(dropRate float64, seed int64) *SimulatedNetwork {
 	return &SimulatedNetwork{
-		nodes: make(map[string]*Kademlia),
+		nodes:    make(map[string]*Kademlia),
+		dropRate: dropRate,
+		rand:     rand.New(rand.NewSource(seed)),
+		seed:     seed,
 	}
 }
 
@@ -35,8 +45,17 @@ type MockNetworkAdapter struct {
 // SendMessage finds the target node in the simulation and calls its handler directly.
 func (m *MockNetworkAdapter) SendMessage(addr string, msg *Message) error {
 	m.sim.mu.Lock()
+	defer m.sim.mu.Unlock()
+
+	// Simulate packet drop
+	if m.sim.rand.Float64() < m.sim.dropRate {
+
+		// Packet is "dropped". We return nil to simulate the "fire and forget"
+		// nature of UDP, where the sender doesn't know about the drop.
+		return nil
+	}
+
 	targetNode, found := m.sim.nodes[addr]
-	m.sim.mu.Unlock()
 
 	if !found {
 		return errors.New("node not found in simulation: " + addr)
@@ -54,19 +73,33 @@ func (m *MockNetworkAdapter) Listen() error {
 }
 
 func NewTestKademliaNode(address string, sim *SimulatedNetwork) *Kademlia {
+	return NewTestKademliaNodeWithID(NewRandomKademliaID(), address, sim)
+}
+
+func NewTestKademliaNodeWithID(id *KademliaID, address string, sim *SimulatedNetwork) *Kademlia {
 	contact := Contact{
-		ID:      NewRandomKademliaID(),
+		ID:      id,
 		Address: address,
 	}
-	rt := NewRoutingTable(contact)
+
+	ttl := time.Duration(TTL) * time.Second
 
 	// 1. Create the Kademlia struct instance first.
 	kademliaNode := &Kademlia{
 		Self:         contact,
-		RoutingTable: rt,
-		DataStore:    *storage.NewStorage(),
+		DataStore:    *storage.NewStorage(ttl, int64(tExpire)),
 		mapManagerCh: make(chan MapRequest),
+		keyStore:     make(map[string]chan string),
+		ttl:          ttl,
+		alpha:        ALPHA,
+		beta:         BETA,
+		k:            K,
+		done:         make(chan struct{}),
 	}
+
+	rt := NewRoutingTable(kademliaNode)
+
+	kademliaNode.RoutingTable = rt
 
 	// 2. Create the mock network adapter for this specific node.
 	adapter := &MockNetworkAdapter{
@@ -77,9 +110,12 @@ func NewTestKademliaNode(address string, sim *SimulatedNetwork) *Kademlia {
 	// 3. Assign the adapter to the node's Network field.
 	kademliaNode.Network = adapter
 
+	kademliaNode.wg.Add(3)
+
 	// 4. Register the fully assembled node with the central simulation.
 	sim.AddNode(kademliaNode)
-
 	go kademliaNode.managePendingRequests()
+	go kademliaNode.RunPeriodicCleanup(5 * time.Second)
+	go kademliaNode.PeriodicReplication(time.Duration(tReplicate) * time.Hour)
 	return kademliaNode
 }

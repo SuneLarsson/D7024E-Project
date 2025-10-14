@@ -17,8 +17,15 @@ func (kademlia *Kademlia) SendPing(contact *Contact) error {
 		responseChan: responseChan,
 		register:     true,
 	}
+	addMapRequest(kademlia, req)
 
-	kademlia.mapManagerCh <- req
+	defer func() {
+		deregisterReq := MapRequest{
+			rpcID:    *rpcID,
+			register: false,
+		}
+		addMapRequest(kademlia, deregisterReq)
+	}()
 
 	pingMsg := NewPingMessage(kademlia.Self, *rpcID, *contact)
 
@@ -48,7 +55,15 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) ([]Cont
 		responseChan: make(chan Message, 1),
 		register:     true,
 	}
-	kademlia.mapManagerCh <- req
+	addMapRequest(kademlia, req)
+
+	defer func() {
+		deregisterReq := MapRequest{
+			rpcID:    rpcID,
+			register: false,
+		}
+		addMapRequest(kademlia, deregisterReq)
+	}()
 
 	findMsg := NewFindNodeMessage(kademlia.Self, rpcID, *contact, *target)
 	err := kademlia.Network.SendMessage(contact.Address, findMsg)
@@ -69,17 +84,20 @@ func (kademlia *Kademlia) FindNode(contact *Contact, target *KademliaID) ([]Cont
 		}
 	case <-time.After(3 * time.Second):
 		// Timeout
-		//TODO add a breakout
-		fmt.Println("FindNode request timed out")
+		// fmt.Println("FindNode request timed out")
 	}
 	return []Contact{}, false, nil
+}
+
+func addMapRequest(kademlia *Kademlia, req MapRequest) {
+	kademlia.mapManagerCh <- req
 }
 
 // STORE
 // The sender of the STORE RPC provides a key and a block of data and requires that the recipient store the data and make it available for later retrieval by that key.
 
 // This is a primitive operation, not an iterative one.
-func (kademlia *Kademlia) Store(contact *Contact, value string, hash string) bool {
+func (kademlia *Kademlia) Store(contact *Contact, value string, hash string, originalUploader bool) bool {
 	rpcID := *NewRandomKademliaID()
 
 	req := MapRequest{
@@ -87,9 +105,17 @@ func (kademlia *Kademlia) Store(contact *Contact, value string, hash string) boo
 		responseChan: make(chan Message, 1),
 		register:     true,
 	}
-	kademlia.mapManagerCh <- req
+	addMapRequest(kademlia, req)
 
-	storeMsg := NewStoreMessage(kademlia.Self, rpcID, *contact, value)
+	defer func() {
+		deregisterReq := MapRequest{
+			rpcID:    rpcID,
+			register: false,
+		}
+		addMapRequest(kademlia, deregisterReq)
+	}()
+
+	storeMsg := NewStoreMessage(kademlia.Self, rpcID, *contact, value, originalUploader)
 	err := kademlia.Network.SendMessage(contact.Address, storeMsg)
 	if err != nil {
 		fmt.Println("Error sending STORE message:", err)
@@ -122,7 +148,15 @@ func (kademlia *Kademlia) FindValue(contact *Contact, target *KademliaID) ([]Con
 		responseChan: make(chan Message, 1),
 		register:     true,
 	}
-	kademlia.mapManagerCh <- req
+	addMapRequest(kademlia, req)
+
+	defer func() {
+		deregisterReq := MapRequest{
+			rpcID:    rpcID,
+			register: false,
+		}
+		addMapRequest(kademlia, deregisterReq)
+	}()
 
 	findValueMsg := NewFindValueMessage(kademlia.Self, rpcID, *contact, *target)
 	err := kademlia.Network.SendMessage(contact.Address, findValueMsg)
@@ -158,4 +192,55 @@ func (kademlia *Kademlia) FindValue(contact *Contact, target *KademliaID) ([]Con
 		fmt.Println("FindValue request timed out")
 	}
 	return nil, false, nil
+}
+
+func (kademlia *Kademlia) Refresh(contact *Contact, key string) bool {
+	rpcID := *NewRandomKademliaID()
+
+	req := MapRequest{
+		rpcID:        rpcID,
+		responseChan: make(chan Message, 1),
+		register:     true,
+	}
+	addMapRequest(kademlia, req)
+
+	defer func() {
+		deregisterReq := MapRequest{
+			rpcID:    rpcID,
+			register: false,
+		}
+		addMapRequest(kademlia, deregisterReq)
+	}()
+
+	refreshMsg := NewRefreshMessage(kademlia.Self, rpcID, *contact, *NewKademliaID(key))
+	err := kademlia.Network.SendMessage(contact.Address, refreshMsg)
+	if err != nil {
+		fmt.Println("Error sending REFRESH message:", err)
+	}
+	select {
+	case resp := <-req.responseChan:
+		if resp.Type == REFRESH_RESPONSE {
+			var result bool
+			if err := json.Unmarshal(resp.Payload, &result); err != nil {
+				fmt.Println("Error unmarshaling result:", err)
+				return false
+			}
+			return result
+		}
+	case <-time.After(3 * time.Second):
+		// Timeout
+		// fmt.Println("Refresh request timed out")
+		return false
+	}
+	return false
+}
+
+// FORGET VALUE/STOP REFRESHING
+func (kademlia *Kademlia) Forget(key string) {
+	kademlia.keyMutex.Lock()
+	defer kademlia.keyMutex.Unlock()
+	if kademlia.keyStore[key] != nil {
+		kademlia.keyStore[key] <- "Forget"
+		delete(kademlia.keyStore, key)
+	}
 }

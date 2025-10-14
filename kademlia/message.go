@@ -13,14 +13,17 @@ const (
 	FIND_NODE_RESPONSE  MessageType = "FIND_NODE_RESPONSE"
 	FIND_VALUE          MessageType = "FIND_VALUE"
 	FIND_VALUE_RESPONSE MessageType = "FIND_VALUE_RESPONSE"
+	REFRESH             MessageType = "REFRESH"
+	REFRESH_RESPONSE    MessageType = "REFRESH_RESPONSE"
 )
 
 type Message struct {
-	Type    MessageType
-	From    Contact
-	To      Contact // Do i need to include the To field in the Ping message?
-	Payload []byte
-	RPCID   KademliaID // Unique ID for matching requests and responses
+	Type             MessageType
+	From             Contact
+	To               Contact // Do i need to include the To field in the Ping message?
+	Payload          []byte
+	OriginalUploader bool
+	RPCID            KademliaID // Unique ID for matching requests and responses
 }
 
 func NewPingMessage(from Contact, rpcID KademliaID, to Contact) *Message {
@@ -63,14 +66,15 @@ func ResponseFindNodeMessage(from Contact, rpcID KademliaID, to Contact, contact
 	}
 }
 
-func NewStoreMessage(from Contact, rpcID KademliaID, to Contact, data string) *Message {
+func NewStoreMessage(from Contact, rpcID KademliaID, to Contact, data string, originalUploader bool) *Message {
 	dataBytes, _ := json.Marshal(data)
 	return &Message{
-		Type:    STORE,
-		From:    from,
-		To:      to,
-		Payload: dataBytes,
-		RPCID:   rpcID,
+		Type:             STORE,
+		From:             from,
+		To:               to,
+		Payload:          dataBytes,
+		OriginalUploader: originalUploader,
+		RPCID:            rpcID,
 	}
 }
 
@@ -109,6 +113,26 @@ func NewFindValueResponseMessage(from Contact, rpcID KademliaID, to Contact, val
 		From:    from,
 		To:      to,
 		Payload: payload,
+		RPCID:   rpcID,
+	}
+}
+func NewRefreshMessage(from Contact, rpcID KademliaID, to Contact, key KademliaID) *Message {
+	keyBytes, _ := json.Marshal(key)
+	return &Message{
+		Type:    REFRESH,
+		From:    from,
+		To:      to,
+		Payload: keyBytes,
+		RPCID:   rpcID,
+	}
+}
+func NewRefreshResponseMessage(from Contact, rpcID KademliaID, to Contact, result bool) *Message {
+	resultBytes, _ := json.Marshal(result)
+	return &Message{
+		Type:    REFRESH_RESPONSE,
+		From:    from,
+		To:      to,
+		Payload: resultBytes,
 		RPCID:   rpcID,
 	}
 }

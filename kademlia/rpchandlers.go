@@ -10,10 +10,14 @@ import (
 
 func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 	// Update the sender's address in the Contact
+	// kademlia.keyMutex.Lock()
+	// defer kademlia.keyMutex.Unlock()
 	if addr != nil {
 		msg.From.Address = addr.String()
 	}
-	kademlia.RoutingTable.AddContact(msg.From)
+
+	go kademlia.RoutingTable.AddContact(msg.From)
+	// kademlia.keyMutex.Unlock()
 
 	// fmt.Printf("Received message of type %s from %s\n", msg.Type, msg.From.Address)
 	// fmt.Printf("Message details: %+v\n", msg)
@@ -35,6 +39,10 @@ func (kademlia *Kademlia) HandleMessage(msg Message, addr *net.UDPAddr) {
 		kademlia.handleFindValue(msg)
 	case FIND_VALUE_RESPONSE:
 		kademlia.handleResponse(msg)
+	case REFRESH:
+		kademlia.handleRefresh(msg)
+	case REFRESH_RESPONSE:
+		kademlia.handleResponse(msg)
 	default:
 		fmt.Println("Unknown message:", msg.Type)
 	}
@@ -49,7 +57,7 @@ func (k *Kademlia) handleResponse(msg Message) {
 		register:    false,
 	}
 
-	k.mapManagerCh <- dispatchRequest
+	addMapRequest(k, dispatchRequest)
 }
 
 func (kademlia *Kademlia) handlePing(msg Message) {
@@ -58,18 +66,37 @@ func (kademlia *Kademlia) handlePing(msg Message) {
 	kademlia.Network.SendMessage(msg.From.Address, pong)
 }
 
+func (kademlia *Kademlia) handleRefresh(msg Message) {
+	key := &KademliaID{}
+
+	err := json.Unmarshal(msg.Payload, &key)
+	if err != nil {
+		// fmt.Println("Error unmarshaling key:", err)
+		return
+	}
+	stored, exists := kademlia.DataStore.Get(key.String())
+	refreshResult := false
+	if exists {
+		kademlia.DataStore.Put(key.String(), stored, false, true) // Refresh by re-putting
+		refreshResult = true
+	}
+	response := NewRefreshResponseMessage(kademlia.Self, msg.RPCID, msg.From, refreshResult)
+	kademlia.Network.SendMessage(msg.From.Address, response)
+}
+
 func (kademlia *Kademlia) handleStore(msg Message) {
 	// fmt.Printf("Received STORE from %s\n", &msg.From)
 	var value string
 	err := json.Unmarshal(msg.Payload, &value)
 	if err != nil {
-		fmt.Println("Error unmarshaling value:", err)
+		// fmt.Println("Error unmarshaling value:", err)
 		return
 	}
+	// originalUploader := msg.OriginalUploader
 	hash := sha1.Sum([]byte(value))
 	key := NewKademliaID(hex.EncodeToString(hash[:]))
 	storeResult := true
-	kademlia.DataStore.Put(key.String(), value)
+	kademlia.DataStore.Put(key.String(), value, false, msg.OriginalUploader)
 	if err := recover(); err != nil {
 		storeResult = false
 	}
@@ -86,7 +113,7 @@ func (kademlia *Kademlia) handleFindValue(msg Message) {
 	targetID := &KademliaID{}
 	err := json.Unmarshal(msg.Payload, targetID)
 	if err != nil {
-		fmt.Println("Error unmarshaling target ID:", err)
+		// fmt.Println("Error unmarshaling target ID:", err)
 		return
 	}
 
@@ -110,7 +137,7 @@ func (kademlia *Kademlia) handleFindNode(msg Message) {
 	targetID := &KademliaID{}
 	err := json.Unmarshal(msg.Payload, targetID)
 	if err != nil {
-		fmt.Println("Error unmarshaling target ID:", err)
+		// fmt.Println("Error unmarshaling target ID:", err)
 		return
 	}
 

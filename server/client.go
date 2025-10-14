@@ -3,7 +3,9 @@ package server
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
+	"strings"
 )
 
 const ERR_ABSENTSERVER string = "Socket does not exist at indicated socket path"
@@ -31,13 +33,67 @@ func SendMessageWithArgument(conn net.Conn, messageType string, argument string)
 
 }
 
-func ListenToResponse(conn net.Conn) string {
-
-	var reply string
-	reader := bufio.NewReader(conn)
-
-	reply, _ = reader.ReadString('\n')
-
-	return reply
-
+func ListenOneLine(conn net.Conn) string {
+	resp, _ := Listen(conn, func(line string) bool {
+		return true // stop after first line
+	}, true)
+	return resp
 }
+
+func ListenUntilEnd(conn net.Conn) (string, error) {
+	return Listen(conn, func(line string) bool {
+		return line == "END"
+	}, false)
+}
+
+func Listen(conn net.Conn, stopCondition func(string) bool, append bool) (string, error) {
+	reader := bufio.NewReader(conn)
+	var sb strings.Builder
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				return sb.String(), io.EOF
+			}
+			return "", err
+		}
+
+		trimmed := strings.TrimSpace(line)
+		if stopCondition(trimmed) {
+			if append {
+				sb.WriteString(line[:len(line)-1])
+			}
+			break
+		}
+
+		sb.WriteString(line) // preserve original newlines
+	}
+	return sb.String(), nil
+}
+
+// func (rr *ResponseReader) RoutingTest(conn net.Conn) (string, error) {
+
+// 	var sb strings.Builder
+
+// 	fmt.Println("Listening to response...")
+
+// 	for {
+// 		line, err := rr.Reader.ReadString('\n')
+// 		if err != nil {
+// 			if err == io.EOF {
+// 				return sb.String(), io.EOF
+// 			}
+// 			return "", err
+// 		}
+
+// 		trimmed := strings.TrimSpace(line)
+// 		if trimmed == "END" {
+// 			break
+// 		}
+
+// 		sb.WriteString(line) // keep original newlines
+// 	}
+// 	return sb.String(), nil
+
+// }

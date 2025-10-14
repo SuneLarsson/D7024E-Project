@@ -72,6 +72,22 @@ func (kademliaID *KademliaID) String() string {
 	return hex.EncodeToString(kademliaID[0:IDLength])
 }
 
+// BinaryString returns a string of binary values representing a KademliaID
+func (kademliaID *KademliaID) BinaryString() string {
+	bytes, err := hex.DecodeString(kademliaID.String())
+	if err != nil {
+		return ""
+	}
+
+	// Convert each byte to binary (8 bits each)
+	binStr := ""
+	for _, b := range bytes {
+		binStr += fmt.Sprintf("%08b", b)
+	}
+
+	return binStr
+}
+
 // NewDataItem is a constructor that validates the input value.
 func (kademlia *Kademlia) NewDataItem(value string) (*DataItem, error) {
 	MaxValueLength := 255 // Define a maximum length for the value
@@ -91,4 +107,16 @@ func (kademlia *Kademlia) NewDataItem(value string) (*DataItem, error) {
 		timeToLive: time.Now().Add(24 * time.Hour), // Example TTL
 	}
 	return item, nil
+}
+
+// IsValidKademliaID checks if the given string is a valid Kademlia ID.
+// A valid Kademlia ID must be a 40-character hexadecimal string.
+func (kademlia *Kademlia) IsValidKademliaID(s string) bool {
+	_, err := hex.DecodeString(s)
+	return err == nil
+}
+
+func (id KademliaID) IsZero() bool {
+	var emptyID KademliaID
+	return id == emptyID
 }

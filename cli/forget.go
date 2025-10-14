@@ -8,23 +8,23 @@ import (
 )
 
 func init() {
-	rootCmd.AddCommand(getCmd)
+	rootCmd.AddCommand(forgetCmd)
 }
 
-var getCmd = &cobra.Command{
-	Use:   "get",
-	Short: "Get a value",
-	Long:  "Get a value",
+var forgetCmd = &cobra.Command{
+	Use:   "forget",
+	Short: "Forget a value",
+	Long:  "Forget a value",
 	Run: func(cmd *cobra.Command, args []string) {
-		response := get(args[0])
+		response := forget(args[0])
 		fmt.Fprintln(output, response)
 	},
 }
 
-func get(arg string) string {
+func forget(arg string) string {
 	conn := server.ConnectToServer(server.Default_socket)
 	defer conn.Close()
-	server.SendMessage(conn, "get"+server.SEPARATING_STRING+arg)
+	server.SendMessage(conn, "forget"+server.SEPARATING_STRING+arg)
 	response := server.ListenOneLine(conn)
 	return response
 }

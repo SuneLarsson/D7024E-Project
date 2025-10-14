@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"sync"
 )
 
 type NetworkAPI interface {
@@ -15,6 +16,7 @@ type Network struct {
 	Self      Contact
 	Conn      *net.UDPConn
 	onMessage func(msg Message, addr *net.UDPAddr)
+	workWg    sync.WaitGroup
 }
 
 func NewNetwork(self Contact, conn *net.UDPConn, handler func(msg Message, addr *net.UDPAddr)) *Network {
@@ -22,12 +24,13 @@ func NewNetwork(self Contact, conn *net.UDPConn, handler func(msg Message, addr 
 		Self:      self,
 		Conn:      conn,
 		onMessage: handler,
+		workWg:    sync.WaitGroup{},
 	}
 }
 
 func (network *Network) Listen() error {
 	// Create a UDP listener
-	defer network.Conn.Close()
+	// defer network.Conn.Close()
 	for {
 
 		buffer := make([]byte, 20480)
@@ -47,13 +50,18 @@ func (network *Network) Listen() error {
 		}
 
 		if network.onMessage != nil {
-			go network.onMessage(msg, remoteAddr)
+			network.workWg.Add(1)
+			go func(msg Message, remoteAddr *net.UDPAddr) {
+				defer network.workWg.Done()
+				network.onMessage(msg, remoteAddr)
+			}(msg, remoteAddr)
 		}
 
 	}
 }
 
 func (network *Network) SendMessage(addr string, msg *Message) error {
+
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return err
@@ -67,4 +75,10 @@ func (network *Network) SendMessage(addr string, msg *Message) error {
 
 	_, err = network.Conn.WriteToUDP(data, udpAddr)
 	return err
+}
+
+func (network *Network) Shutdown() error {
+	error := network.Conn.Close()
+	network.workWg.Wait()
+	return error
 }

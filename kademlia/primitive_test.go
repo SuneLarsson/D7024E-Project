@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,7 @@ func setupPrimitiveNodes(sim *SimulatedNetwork, addrA, addrB string) (*Kademlia,
 }
 
 func TestFindNodeTimeout(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := NewTestKademliaNode("nodeA", sim)
 	badContact := Contact{
 		ID:      NewRandomKademliaID(),
@@ -29,7 +30,7 @@ func TestFindNodeTimeout(t *testing.T) {
 }
 
 func TestFindValueTimeout(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := NewTestKademliaNode("nodeA", sim)
 	badContact := Contact{
 		ID:      NewRandomKademliaID(),
@@ -44,7 +45,7 @@ func TestFindValueTimeout(t *testing.T) {
 }
 
 func TestSendPing(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, nodeB := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 
 	err := nodeA.SendPing(&nodeB.Self)
@@ -52,7 +53,7 @@ func TestSendPing(t *testing.T) {
 }
 
 func TestFindNodePrimitive(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, nodeB := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 
 	target := nodeB.Self.ID
@@ -70,14 +71,14 @@ func TestFindNodePrimitive(t *testing.T) {
 }
 
 func TestStorePrimitive(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, nodeB := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 
 	value := "helloWorld"
 	key := hashKeyForValue(value)
 	// hash := sha1.Sum([]byte(value))
 	// key := hex.EncodeToString(hash[:])
-	ok := nodeA.Store(&nodeB.Self, value, key.String())
+	ok := nodeA.Store(&nodeB.Self, value, key.String(), true)
 
 	assert.True(t, ok, "Store RPC should succeed")
 
@@ -88,12 +89,12 @@ func TestStorePrimitive(t *testing.T) {
 }
 
 func TestFindValuePrimitive(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, nodeB := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 
 	value := "secret"
 	key := hashKeyForValue(value)
-	nodeB.DataStore.Put(key.String(), value)
+	nodeB.DataStore.Put(key.String(), value, true, true)
 
 	contacts, found, gotValue := nodeA.FindValue(&nodeB.Self, key)
 
@@ -103,7 +104,7 @@ func TestFindValuePrimitive(t *testing.T) {
 }
 
 func TestFindValueReturnsContactsWhenNotFound(t *testing.T) {
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA, nodeB := setupPrimitiveNodes(sim, "nodeA", "nodeB")
 
 	key := NewRandomKademliaID()
@@ -116,7 +117,7 @@ func TestFindValueReturnsContactsWhenNotFound(t *testing.T) {
 
 func TestPingTimeout(t *testing.T) {
 	// NodeA tries to ping a contact not in the network
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := NewTestKademliaNode("nodeA", sim)
 	badContact := Contact{
 		ID:      NewRandomKademliaID(),
@@ -129,13 +130,35 @@ func TestPingTimeout(t *testing.T) {
 
 func TestStoreTimeout(t *testing.T) {
 	// NodeA tries to store on nonexistent node
-	sim := NewSimulatedNetwork()
+	sim := NewSimulatedNetwork(0, 0)
 	nodeA := NewTestKademliaNode("nodeA", sim)
 	badContact := Contact{
 		ID:      NewRandomKademliaID(),
 		Address: "nonExistentNode",
 	}
 
-	ok := nodeA.Store(&badContact, "val", "key")
+	ok := nodeA.Store(&badContact, "val", "key", true)
 	assert.False(t, ok, "Store should fail on nonexistent node")
+}
+
+func TestForgetPrimitive(t *testing.T) {
+	sim := NewSimulatedNetwork(0, 0)
+	nodeA, _ := setupPrimitiveNodes(sim, "nodeA", "nodeB")
+	nodeA.keyStore = make(map[string]chan string)
+
+	value := "helloWorld"
+	key, _ := nodeA.IterativeStore(value, true)
+
+	time.Sleep(100 * time.Millisecond)
+
+	nodeA.keyMutex.Lock()
+	assert.True(t, nodeA.keyStore[key] != nil, "Node A should contain the channel to forget")
+	nodeA.keyMutex.Unlock()
+
+	nodeA.Forget(key)
+
+	nodeA.keyMutex.Lock()
+	assert.True(t, nodeA.keyStore[key] == nil, "Node A should not contain the channel to forget anymore")
+	nodeA.keyMutex.Unlock()
+
 }

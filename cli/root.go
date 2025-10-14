@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -10,6 +11,8 @@ import (
 const TimeLayout = "2006-01-02 15:04:05"
 
 var Verbose bool
+
+var output io.Writer = os.Stdout
 
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "verbose output")

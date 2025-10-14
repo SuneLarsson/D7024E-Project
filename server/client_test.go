@@ -12,6 +12,6 @@ func TestNoServer(t *testing.T) {
 		}
 	}()
 
-	os.Remove(DEFAULT_SOCKET)
-	ConnectToServer(DEFAULT_SOCKET)
+	os.Remove(Default_socket)
+	ConnectToServer(Default_socket)
 }
